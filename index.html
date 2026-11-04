@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>매칭몬 도감</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="매칭몬 도감">
+<meta name="theme-color" content="#141414">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+/* 레이아웃: 실제 도감 이미지와 같은 6열 원형 판. 캡처해서 공유하는 그림이 곧 결과물이라 어두운 판 하나로 고정 */
+:root {
+  color-scheme: dark;
+  --page: #141414;
+  --board: #1E1E1E;
+  --panel: #262626;
+  --panel-2: #303030;
+  --line: #3E3E3E;
+  --text: #F2F2F2;
+  --muted: #8C8C8C;
+  --accent: #FFD43B;
+  --danger: #FF5A5F;
+  --gold: #E8B931;
+  --font-ui: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-title: "Jua", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+  --gap: clamp(8px, 2.6vw, 22px);
+  --cell: min(76px, calc((100vw - 32px - 24px - 5 * var(--gap)) / 6));
+}
+* { box-sizing: border-box; }
+html, body { background: var(--page); color: var(--text); }
+body { font-family: var(--font-ui); -webkit-tap-highlight-color: transparent;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 24px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--page); }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 상단 도구 막대 */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding-block: 10px; background: var(--page); max-width: 560px; margin: 0 auto; }
+.bar .status { margin-right: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.ok { background: #51CF66; } .dot.warn { background: var(--accent); }
+.btn { border: 1px solid var(--line); background: var(--panel); padding: 7px 11px; border-radius: 9px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.btn:active { background: var(--panel-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #1E1E1E; font-weight: 700; }
+.btn.danger { color: var(--danger); }
+.btn:disabled { opacity: .4; cursor: default; }
+.dupline { max-width: 560px; margin: 0 auto 8px; font-size: 12px; color: #FFC9C9; background: #3A1D20; border: 1px solid #5C2A2E; border-radius: 9px; padding: 7px 10px; }
+
+/* 도감 */
+.board { background: var(--board); border-radius: 6px; padding: 18px 12px 30px; max-width: 560px; margin: 0 auto; position: relative; }
+.grid { display: grid; grid-template-columns: repeat(6, var(--cell)); column-gap: var(--gap); row-gap: calc(var(--gap) * 0.6 + 14px); justify-content: center; }
+.slot { display: flex; flex-direction: column; align-items: center; gap: 9px; min-width: 0; }
+.num { font-size: clamp(9px, 2.6vw, 12px); color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: .02em; }
+.cell { width: var(--cell); height: var(--cell); border-radius: 50%; border: 0; padding: 0; position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05; transition: transform .12s; }
+.cell:active { transform: scale(.95); }
+.cell.edge { box-shadow: inset 0 0 0 1.5px #555; }
+.cell .nm { font-weight: 900; letter-spacing: -.04em; white-space: nowrap; }
+.cell .s1 { font-size: calc(var(--cell) * .3); }
+.cell .s2 { font-size: calc(var(--cell) * .22); }
+.cell .more { font-size: calc(var(--cell) * .15); font-weight: 700; opacity: .85; }
+.cell.sel { box-shadow: 0 0 0 3px var(--board), 0 0 0 5px #fff; }
+.cell.hl { z-index: 2; }
+.cell.hl::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 12px 3px rgba(255,255,255,.55); pointer-events: none; }
+.cell.dup::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2.5px dashed var(--danger); pointer-events: none; }
+.badge { position: absolute; left: 50%; transform: translateX(-50%); font-size: clamp(8px, 2.3vw, 10.5px); font-weight: 700; padding: 1px 5px; border-radius: 8px; white-space: nowrap; pointer-events: none; z-index: 3; line-height: 1.4; }
+.badge.mgr { top: -9px; background: #E9ECEF; color: #333; box-shadow: 0 0 0 2px var(--board); }
+.badge.dup { bottom: -6px; background: var(--danger); color: #fff; }
+
+.owner .cell { background-color: #141414; background-size: cover; background-position: center; box-shadow: inset 0 0 0 2px var(--gold); }
+.owner .cell.sel { box-shadow: inset 0 0 0 2px var(--gold), 0 0 0 3px var(--board), 0 0 0 5px #fff; }
+.owner .crown { position: absolute; top: calc(var(--cell) * -.27); font-size: calc(var(--cell) * .3); line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
+.owner .oname { font-weight: 900; font-size: calc(var(--cell) * .24); line-height: 1; white-space: nowrap; }
+.title { grid-column: span 2; display: flex; align-items: center; justify-content: center; align-self: start; height: var(--cell);
+  font-family: var(--font-title); font-size: calc(var(--cell) * .42); color: #fff; white-space: nowrap; letter-spacing: .02em; }
+
+/* 칸 메뉴 */
+.menu { position: absolute; z-index: 30; width: 210px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.55); }
+.menu .head { grid-column: span 2; font-size: 12px; color: var(--muted); padding: 2px 4px; display: flex; align-items: center; gap: 6px; }
+.menu .sw { width: 14px; height: 14px; border-radius: 50%; flex: none; background-size: cover; }
+.menu .btn { padding: 10px 6px; font-size: 14px; }
+.menu .wide { grid-column: span 2; }
+.menu .on { border-color: var(--accent); color: var(--accent); }
+
+/* 대화상자 */
+.modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.62); display: flex; align-items: flex-start; justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 8vh) max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); overflow: auto; }
+.dialog { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+.dialog h2 { margin: 0 0 4px; font-size: 17px; }
+.dialog p { margin: 0 0 14px; font-size: 13px; color: var(--muted); line-height: 1.55; }
+.row { display: flex; gap: 6px; margin-bottom: 8px; }
+.row input { flex: 1; min-width: 0; padding: 10px; border-radius: 9px; border: 1px solid var(--line); background: #1A1A1A; color: var(--text);
+  font: 900 22px var(--font-ui); text-align: center; letter-spacing: .15em; }
+.row .btn { padding: 0 12px; }
+.err { color: var(--danger); font-size: 13px; min-height: 18px; margin-top: 4px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+.dialog.shot { max-width: 420px; }
+.dialog.shot img { display: block; width: 100%; height: auto; border-radius: 6px; -webkit-touch-callout: default; user-select: auto; }
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); transform: translateX(-50%); z-index: 80;
+  background: #000; border: 1px solid #333; color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 13px; max-width: calc(100vw - 32px); text-align: center; }
+
+/* 캡처 모드: 도감만 */
+body.capture .bar, body.capture .dupline, body.capture .menu { display: none !important; }
+body.capture .cell.sel { box-shadow: none; }
+body.capture .owner .cell.sel { box-shadow: inset 0 0 0 2px var(--gold); }
+body.capture .board { margin-top: 12px; }
+
+@media (prefers-reduced-motion: reduce) { .cell { transition: none; } }
+</style>
+</head>
+<body>
+
+
+<div class="bar" id="bar">
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">불러오는 중…</span></div>
+  <button class="btn" id="undoBtn" disabled>되돌리기</button>
+  <button class="btn" id="clearHlBtn">하이라이트 해제</button>
+  <button class="btn primary" id="captureBtn">캡처 저장</button>
+  <button class="btn danger" id="resetBtn">초기화</button>
+</div>
+<div class="dupline" id="dupline" hidden></div>
+
+<div class="board" id="board">
+  <div class="grid" id="grid"></div>
+  <div class="menu" id="menu" hidden></div>
+</div>
+
+<div class="modal" id="editModal" hidden>
+  <form class="dialog" id="editForm" autocomplete="off">
+    <h2 id="editTitle">닉네임 수정</h2>
+    <p>두 글자로 입력하세요. 같은 색을 쓰는 사람이 여럿이면 이름을 추가하세요.</p>
+    <div id="rows"></div>
+    <button type="button" class="btn" id="addRow">+ 이름 추가</button>
+    <div class="err" id="editErr"></div>
+    <div class="actions">
+      <button type="button" class="btn" data-close>취소</button>
+      <button type="submit" class="btn primary">확인</button>
+    </div>
+  </form>
+</div>
+
+<div class="modal" id="resetModal" hidden>
+  <div class="dialog">
+    <h2>도감 초기화</h2>
+    <p>모든 닉네임, 하이라이트, 부방장 표시를 지웁니다. 방장 칸과 색은 그대로입니다. 직후에는 [되돌리기]로 되돌릴 수 있습니다.</p>
+    <div class="actions">
+      <button type="button" class="btn" data-close>취소</button>
+      <button type="button" class="btn danger" id="resetOk">초기화</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="shotModal" hidden>
+  <div class="dialog shot">
+    <h2>캡처 이미지</h2>
+    <p id="shotMsg">이미지를 길게 눌러 사진에 저장하세요.</p>
+    <img id="shotImg" alt="매칭몬 도감 캡처 이미지">
+    <div class="actions">
+      <button type="button" class="btn" data-close>닫기</button>
+      <button type="button" class="btn primary" id="shotSave">다시 저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+'use strict';
+// 45색: 왼쪽 위 1번부터 가로로 번호. 실제 프로필 색으로 보정한 값 포함
+const PALETTE = [
+  '#F8D016', '#D7363B', '#FA7F60', '#F5952F', '#82AB33', '#3A9260',
+  '#309085', '#2B95A2', '#3C91CB', '#3C6095', '#635793', '#844EA6',
+  '#D25597', '#BB3B52', '#F9E278', '#E08982', '#E18875', '#DDA260',
+  '#A0B360', '#73B97B', '#7AB9B5', '#83B3BF', '#71A7CE', '#7A95C4',
+  '#9789C6', '#B884CC', '#E581B7', '#DA8894', '#F1EDBE', '#F3CFCF',
+  '#F3C7BA', '#E7C59F', '#DEE8A4', '#A9D9B3', '#C2E4E9', '#BAE0E9',
+  '#B4D4EB', '#BACAE4', '#CFC8F2', '#D8BFE3', '#F0C5D9', '#F5D0D7',
+  '#F9F9F7', '#B1B1B1', '#141414'
+];
+const N = PALETTE.length;         // 45
+const OWNER = N;                  // 46번째 칸 = 방장 칸 (번호 없음)
+const DEFAULT_PHOTO = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCADwAPADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD5WiPmIowW3LtXHt2qOymT7JJA8QJ5wc8g/SoWcqEXowYsMjn1B+nWm7v30dyCBlv3nHQk/wAqzsWT2ziNyq5AZRuB71PaRNcXyKrhTuGCxx1PFQSofOPbuD6j1FSxMBu3/K4bAbv6/wBKlmsVqh2pQsL0xyqQ5PAPqOo/SqytyUPbjPStzxMGuAb0/f3B/Tr/AC5zXPzZaUuo4PPWlB3RVSPKyNso+OMZp9vIoyCQp6g+lRTEh/RhxioyxIFasyvZnQ2niC4g097GNVCPySwyc9jWRKZJm6szHgjFLZxmf5RtLZyM11GmppkVvG0qvFcAYZmXKg54II/UGspWibQUqujZyXkTN8wViV5PFFkZPtACkHnoa6e48o3ivGyMD2A+bOe1Udd0kI/2izKvEwzlBjr2I7UlUT0Y5UHFXWpDdWMssbTRRHeo3EYyCPY+tUNq43AHY3Y9jXSeEJb4v9nkthJESAQy/kM9q0tR8J3dwJLmysZoCzHEbLkEjtU+0UXZmqoOceaJw0sLKMgZx3AqPcCADnA4rp5tCvrTzIb21kjHAVjxtJ6A/Wsa+02WKULtIJGa0jNMxnRlHoURyD83I96YTuHbIp7ROjYdfwIpxhLoGC/THrV3MWmRBjt4I/xpADyQT04qaGMluRj8KlWHsRu56jtRzWBRuRRbihUjp0+laugEDcp4zyK90+FHwA0/U/DS6/4x1a406GdQ0MEBVNqnoXZs9fSqvjn4GXHh22n1rwpq665pkSl5ITjz4l9fl4YD2wfauGtiqTTjc9rLsNUp1oTaPNIwOcD8akY4HrxTFwFGec07Fecz7+nogXgdevagdOeaXoOKAQD1pG4Y4609OmO/1puP504D5qTNI7jx6UYGeoNA5GKXPPb0pG5wlz8581Bg7csM8g9//rU2xkPmeWcBX+U7uBntUds5CgEE/wB3Hf1BprAK25RlMnAb0r6Nn4kazQufljy2w/dPVfXHtU9japeLOhZkcJuQEjrmq0LggMrZzjAY4Zfoa2/D0Uc800UsKyjyshWHIIIPB/z1rnnLlVzrpR5nYz0up5rJ7W6yGhQopK8gdQp9Rkdfese4H7kENuINdx4i0O60/dqFhI81m6Lvk24ZUbGN3t7+orl7+APGZ4wBkAlQOD2z9failUjLVDq0pRdmZBGRkelT2dt55KZUN2ycE1LBGBLtmRgGGMY5/CrkFs8DltoKE4OeTitZTMYU7lF7ea2kwAw+oqwtxfqdyuc+x/n7Vq28LXDLFHCHJ4weufSu78LeGLFYVfVZEhQHDLnaT/Q1z1MRGC1O2jg5VHpojg/Dun319exHymZS3VGz+navVtE8MRyu4lgBhlAJDryjf4EVqJr3gfRbdYrcwMUGB0yfyrFv/iFpwfZp/wB0nACg1w1KtSp8KPWw9GlSVnK53XhXwBoEd2rrGHDH5x1xx2B/pXqtl4f097KOIwAKgwO9eLeCdfv9RuENuGK59DXvXg8Xdxar568+wrldSV7SNK9NQV0ZeqeBtNvpTNJBDK7YBLKM4/yaw5vg/wCGmuEleziYKcldvTjtXrcdoDjIPHakltwq8c/WrXMtmcbqX0PmL46fBqxtdI/tnw/AyiLJnjzyo9a+doYDbyBHG5cnqeQfT61+imqWcV1ZTWkqgxyoUYEZ4Ir4c+K3h/8A4R7xbf6cqYRZDJGSMfKa7cLXb9xnFiqStzI4toCzhIgDIrYwP0r1L4Q/Da61LULbV9Sg22KyB0RgfmI7/TNc78LdDj13xrZWFyzIhcMxA545x+lfYUVpb21qllbqqBEwg4AHv7UsZXcfdTNcDQj/ABJHH+K9GuPFtgtlHcPHZ2nyRxBvlZx3I7+3415rp02q+CvF1tbzNPHEZQrq2QroeDkGvc/Dlhb6LKI7jUYEYnJJkByT6VpePfDWk+M/DU1sBE19Che2mB+bcOgz6V5fKpKx9Jh8UqMlBr3WfK3xc8OL4d8a3ENum2xvFF1a4HGxuqj6HI/KuQzx+Nez/Fqzlv8A4W6VqN3GVvtLuvsspPXa3GPzArxfdzxWkHzRPcoyutROfzpQCM0E5YGkJrQ6Lj+Ox6U8djUIBzzT1PJzmk0XB6knbv1pVGDjg01eRThgd84qToTPPLfaX2PnB6Y7GnZZHwMZ/Q1AOCCOCOlSNIzM287snOfevpHqfiRZimCIB/EPaul8HXKJqMTO+2N22SEjGAe9cgreoJ59ea1NIkKvkdRyRnBxWNWN4tHTh6nLNM9o0uSI4s7mZZIpFaLBG4d9yHPYggj/AOtXM3ng6eynkVU3hJG2c8SJ1wff39qi8OXy30yLNcFM4PL45UdQPX/CvVI9Nlk01S+2TGMsejehHp34rw5TlQlbufT06UK8eZnjN34fVgApBiH3QTyPb2oGmeSrJvLq4+Ut94e2a9A1nS5I5iAgCnpXN31q8bshU5FbxrykjKWFhF3SMpJYNOja4ZQHIA6ck+1YniW+1u5uIYXaQCWMPHGvcEn/AAqeS6hfVI1uW/dQZ3Dpzn/9ddRq1/ouuaXa2dvYXBuYF228sYAZR6H1FdMLRd2jirKU48sHY860qeeHUoVWFWmV+RIu49sjn6cfjX0Vpngiz1yZNUt9Mis7FVwNq4Mpzncf5fhXG/DjwZYWl2t7q7Fn/hgHLt7ei/zr6W8FafcXcELTwLbWyKBDABgYHtXPi8ZzPkga4bCSw8OeoReA/BEdvGhESLCQCMALXpdhYR2kAjjAwBjNS6dbxwxDAAI9OlWWP0rmhC2rIq1pTkRBexFQz/dNTO+Oap3EoI5xWhmk7lKckZH4183ftX6CXubDWYkzuBik7d+P619G3LZQnnOelecfGfSxqvg65g2CRxynGcH1rOnPkqJm7p88XFnj37LttC3ia9DxqzpFmJz1Ug8j8v5V7P43tr86RqCW24O9rIFK9QSteNfs8xSW3i5Jo0IIjZGbswOMAj8+favqAQW1wqLOnynrzgirxS5qlysM/ZRVz44iOpafdC4M87EHnfITmvTvh945vo76GFpHZTjIz05rovFHhSBb66tGjtsh2Ox16g8qw98VQ8C+EIxdSJbpvlLDcQPlQfWuWbT23PoYVYSp+8dN8ctMhufhf4gmgQDekN6AB3VhuP5V8lk4+tfbPi2COTwnqti+Ghj0qaFz2JKGviUYAAPUDmt6a0Ly+b5WhRn1NA+U0g6UcYzg1oepFj+pFO4Pc4poPQjNKM9KlmsSVeBjNOGTxUS8Hk1KuOtQbxZ5vRjv2oIwead2zX0h+LE+nJC84SZ9oPQnpWyukvvI4bGCCD29axLVdz4ziuj0u3umATzPlQ4x3X0x6iuerK2p2YaKlo0beggwoqyoNyHIYivpH4P+XrWlxyOdyIoRlbnPqDXzG1wLGTDyLjvk4r3n9lrVROb+2Vw0ayqy4Oeo5H6V42MptrmPepVUoci3Oi8ZeA57e7Esc2Ez8qYz3rnPFfgW6ULdRiMjaFO3gkn2r3zxVbieONwAeATisi+0g3kcUaY3gYA/rWF5J6GkK7cVc+cdS8BRqPNFhG8rD5nxyaZZeDrhLpUYSJ0wqtivopPCkkEgV0YqwGTjP5Voaf4ZtftYnuLZS69OOlV7SpazH7WnHVI8/wDAfggWwSeSAq+erckfnXremQiBEBGSO9TJaxxjCKoHoBTtu329ahRadznq1nVepeSUAf40hlyeDVQFs8GhicgkgVqpMw5SWSUbSDVOR89j7U6R88+9V5GxnOfw7VTZUY6kE7nbz2HrWHq8ZmidGGVYEc9K17piVPArJunfZgHngkEcVhJ6m8UeQeBdEn0n4jmNATbrcscH/nmQ2CPoQD+de3XczRxhhxt54+lcncadFLqUV8hZCGVl2HHPPX2rqX/eopwDkA+1NzckNpJo5TR7OXxB42mfUQfs0SgysTgcdFr0ZbGxS2FvYRxwRA/8sxj8TWXZWMQceXAsSFsnb3NT+LNZ0vw1os+q3k4jihTJyadKNlqaVJynJKJwnx31618L+BL2zikH2q+Uwp83Jz1P5V8iMeK6b4jeMb7xhrkl9csVgDEQRH+Bc1yxbHSt4Rsj3cNT9lCz3JU649acD2qDeQc1JGxIps7ITHp6U7knJpo5HNKvT8ak3g7jgT6cVKh49KiBGalQ5xkUmdEDzthmmkYp5pK+hPxkIpGikDqeQc12V1qiM1stiqia4RcsO3b8640gEVYtvOjZHXcNvQ1lVgpas6aFWVPRdTX8RaXNbaptupSI5EDJKwLBuOn519B/sSaNNNBrt4+RB9oijGB94hSTj8xXiEJ1HU7ONdQcLbJzjHzNX2P+yz4efSvhpbTtCY5dRne6246IcKg/Jc/jXBiql6fIehSo8snVPVrnT7V40jMeQox1plvYW1u5aKIKT1NW5VKtg1GSwPcjrXG9zRXtuPOCCDioZQo6f/rpzDcuTkc9KqSyPG+GyAaU5WVxJaj2A9QKYQvfjmm7tzdc0jYBz0P1rLmRslYUhTzio3GR14p5OMcj8ajc9wMVaYyByFPv2qF1PapmGT1/KmnA7YGKGNMoXQ5wBnvWbdIwOAPvCtd1zk8HBqlcJjjufas5RNEzFkHlAxgZbjHt61oW1wEtwzZAXPX0FUr5WEoOfaqc11stpQSNuxv5VlzcrNeXmMbxb8TrfTp/sWnp505IGc8D3zXhv7QPijxLea/p+lX13iwkjWcRoDhmyRz64rd0TQb671Fd0THzJslye2etQ/tH6C0UOhaoMsY5HgkI7ZG4fyNdFCUVWSep1VqdqaUN9DyoHHamHg9jTvag84zXSesncTApynA4NJ36ilU4HSkaxY9d3qKkGSAKaOmc05BxjNQzpgx+MCpIzg4JqNcnGaemM8VLOmB5/wAE0EegpT1rqPAnw/8AFnjeeSPw3pEt2kJxNOxCQxn0Ltxn2619BKSirs/HoxctEczbQme4jhXkuwUfnXbX2moLVVVANoAGB6V678Pf2b7jT9Vh1DxnrtpHDHlvsliSzk+7kAAfQGu3+IfhnwTaaFLZaZpFsjbCFl5L5x1LZzXlYrHQjJKLue/luAc4vmWrPnjR7Cdlh3ncn8q+6fBMsNjoOnwQY8uK2jRAPQKK+R/CVqLnSZPLCu6Y6DtnBr2zw54mvbCygs7qNgY4gqsT94AdRXmYnEpSTPReDbgkj2S71iEEu7AVVXxDYFwhkXOOxrybVvE0lwrLFkk9MeteJ6m3xI1DWJLy31SXTo1c+VFDL0A6Z9adKpKrqmkZ/UeSOqZ9mNrNqqZBUg+tUor+K5nMYK5PNfOvgPxD8Q5ZBZ63bw3SAYW6QbD/AMCHQ/hXs3gGw1Bp2vL05ULgD3NOUp83KRLDxpw5mzrgpGcUo7fzNTFOeabsxS5bM5LkL+oqPdnHNSuMk/pUZU/SriMYxHQ0wkY4PWnMD71E+c+9WthiSDjOce3rVKcAZ5HHarEp454+lVJnAUkk81DGjIvzkFsDA6VzmoyMRtGDzwa3b5yV56ZxXMX8hkmjRc7fT8a46rO2irs1vDeiQQWySJkyH17Cud+NuhnU/BWowxpukhQXMX1Tk/pmu+8PoDaxqc5I4xSeIlt9ghmdAZiY0Un75xkgfhniphpaRSqfvNT4hPODjrSfiOK2vGujtoPia+01xtSKUmMnuh5H6Vz0t9ZxnDzJx6V7ELzV4o9R1qcFeUkicdaenXmqcWo2cj7VnUH3q0pBGVIb3olCUd0a0q9Op8EkyZevGKcucYFRKcHNSAjHSoaOyMkxwJBqVegIOD6VE2OtPA5GM1DOqDsZvwz8F6j468XWmg6cNvmHfcTkZWCEfec/yA7kgV9paa+g+DNEt/D+jpHb21mgRU/iJ7u3qx6k1zf7Mfg6Dwp8NY9WuURNT1lRczMw5WH/AJZJ+XzfU1L49tLDULl5y2yfGPMRsH8fWpzLFucuWL0R8LlGCV7zW5Je+J4biVlJJ7g9q8++JWqXo05ltomBkB+c8YBrpvAuhl4rnUb2driCNjHCGxjI6t/SuZ8dTiS/dIU3x/dyTk//AKq8ulfnTZ9KnCLcKZwfwX1uKDxa+j3X3XztyeoPUf1r6Gn0+C/01bUEIUH7uQdVr43vLmfT/F897auUkgmBRh2NfUnwv8VW3iPRYLiJlEoAWVP7rDqK680w7jy1Y7HiYPEOblF7xZyfiSz8V+HdSiM2orPZSMdqyhSWA7Buua6DwUn2q4hZkXzZsYyK2vi1p7XfhmKdFLNBMCcDOAeM/oKpfDOwu5JoLi3jd44Wy5A4FctKTlBPqehKs5U3c9e0nw1YRbXZVdhyfSungSKOIRxqFUdAKy9NmhSzVrqaOE453Niri3unFgFvoCSP74rvpyVrngVI1JPYsOAFyf5VWkkA6Y/GmT31tt+W5jYEdmFc3q/ijTbGXZNdwhj2Lc05TSFClN9DoGcj/wDXTd4A6/jWFa65BcrvikVl9qvQ3Ak7jFRGomW4NblxzkZ7VBKeMj8KR5uOPoKqySkjAJ4PNaXFYWVsDg9Kzb6bchGR9amurhQh659qwry7Vc5IJzwKylM0hHUr6rNjcuQNnNcxY3CXGpnbgjPr0qPxRrUVtFKrP8zgjOar+E42uJhcAMFxgHFc09Tupx5YnqmgD5Y/QDjirep2EN2YWniR2hk8yMsOVbBGR78mqfhtMIqkYI6ZrfKB1IGPrVRXu6nHOTUj5s/ak8C3OpWCa9pSs1xaIRNEg5kj9vUj+VfLDZB5r9INcsBc2bowHPT2r5a+N/wcukmm8Q+FbPfG2WurKIcqe7Rj09V/KvTy3HKD9lU+TOHHYaVVe0j9x4EOtX9P1Ce3kADEp6GqTqyMVYEMDggjBFIK92UVJWZ49KrOlK8HZnaWlxHcRb1wD3Hep+rcVy9jcMgV1JB6H3res72OcgMQGHUGvMr4dw1Wx9rlubQxCUKmkvzLq53e1So3XAFRKe/apFI6GuOSPpqfqffF34d0a50qK1ntSI4o1RNjspVQMDGD6V5T478G6NbxSSWeoX8LYPytOW/nXt8ttHKAJC2PRTgVha14a0i8iZZ7PcGGCd7A/wA64a1NyV4o+NwmJ9m9WcDoujRSeH7S1mmMUEMKqyJwZDjJJPvXNeMPCWlzWErWzwWRTLbliyW9ic103jn4czanci/03xDe2UiIFWBmzEMemOQfzqlpXhTxUthJa6gYb9dpCN5oDZ9TXGoOLTud0aifvcx8ga6EW4khRTJO87yOwHX+FR+Qz+Navw18VXHhTxTDLMXSzlcLOv8Ad/2se1e/+FPhRqHhfV7nXrnRYdYuHBEMTDCxknJI65OOKxPiF4eg18yPffD7U7K5HWez2sfy4zXtTxtOcfZyV1Y86ng6im6kGrnr+jXFvqNgGykkM0efUMCKyLXxdYeH4Bp1pCiwISpz1J9a88+DviibS538GaobnfGM6fPcQtGZFxzGQf4x29RWJ42v5LPWJbSFFlkcllRwTivIVGUKns7+h7WCpU6rbmtP1Op8W+OZrm6bY78ArjPT/CvP9R8T6xNdmKxkup26Yj5/OorPStf1e5Czf6JbMPmIGMr9TXp/gyDS/DNq9va2aMHxukdRvbHv2rthGnT3Pc+rPl9xaHAWzfEOdoYorO8i844TzJCAcDNa+m/Djxxr9yj6nqUenwlzulDFjwR0HXntXod74kj3LuZS4+Zm67R/j2ptn4pM0h2Y5OBzyKuVWMVojzMXSlGOqNfSdEm0K2jtorxrlEUAySD5mNdDY3DKo3kj2FZVrf8A2iFVbljz9KvRjoMnNcEfiujwql3uaZuQw61FJOdn9arqD71HdSCNeWxiunn0MeUh1G5KDO78BXG+IdWitoXaSUrgde2ava/q0UKO7SBNvJJNeMeLNcl1a8+x27kRKfnbPvSpwdSR0RtFFpbqbXtWVvm8kP07GvVfDKLBboi9OgFeb+FoFi2hQeMceteg6RNtVQc5FFZ62RqvhPRPDz5DYx0roYTkDmuR8Lyku65PQGuqgb5RUx1RxVFqSSRh1IwMViyW6i4eNlyh+bFby/dI75qpdRjcsgHQ81jVjcVOVmeS/FL4H+GvGKSXtsg0nVSCRcwJ8sh/6aJ3+o5+tfKfjz4c+KPBuoy2up2JkiRsLcQ/PG47H1H41+hiqPqBXEfE3Rbe/tZA8YY+V3FdOGzOrhtJarzMJ4OniHroz4Hs8iMgg9eKsK2D/EMHrXV/FnTU0zxc8EaCNWgRwMYzn/8AVXIg/MBnpX1FKoqsFNdTxKsHRqON9jStdTlhUbxvXPWrX9sjPEOf+BViFuDikYAygZI7nBqJYenLVo76Wc4ulHljLQ/Uh1dhnCrjpUUgnwR5St9DWjtGM4qKSPHQZ/GvElBnQpmJOuTh4sL9KgiCLJ8h2gHoa3WiyMYqFrSMnlDXLKi73NlURRBz/EpH+9VG/trWfiXJPbAOK3o9Pibnb+FPWxiR+I1980nQctGCqqL0OI1bRNOubYiW0EmOR8nIPYg+vvXhnia7s7DxU1lqCIt1CC0LOMeYpHB/x96+rPssY4KDFc74v8B+FfFUaprui292yf6uQgrIn+6ykEURwbvds7MNmXsXqrnzdLrEAXe6kDHY5xWTqXiiMgxwvlsY46165r/wC04RP/YOtXduMfLBdnzkH/AuGH615Zr/AMNfE2gXG2+08tblsC6hPmRfiRyv4gVfseTc+kp53CqkobmJb37ysfNZwCckHoTXVeHrSZgsmGIPc8V0HgrwnYQqksiJNORkcZAr0/SvDUAjWS6AUDkLxzWTfPpE8/F4zX3jlNF0+5W3ST5gDXSxQSCNSRzW08ECEKqgDtioZ3ihQtlcfWoVLl3PIqVefoZssvlRkkdK5bXdYWNGLNgKOlWPE+uwRRuDIBjP5V4Z498ZmR2tYHyWyCc1rTpOo7Ia5Yq8h3jjxQ1xO9tbSeuTngVkeH7JpPn2n5jnNUfDOmSahP51yDtzx716joelRwQAmNcDjpXXNxpR5UOmnN80iPSbcW8StgZxxW1YT7HAf8z3qBo1GQrE5PpT4I1JAzwDnB4zXI/e1Oy1kd74Pk3zHk4x+ddpA2QOeleeeEblhfeUvdOtd5DMu7Yr5I6+1KHZnn1fiNFWxx69adIoKdqghfIOePqalLZGTnHrRJIxQ+3wV+lYHisBo5c/888fpW+pCA/nXF/EjVYtK0XUNRlKhII2kJJ4+UZx/SuKcea0TSDs7nx78d9RivfiLexwEFbONLYkd2Xlv1OK4PdnmrGp3El7fT3s7FpZ5Wkc+7HJ/nVXtxzX29Cn7OnGHZHzdep7So5DskDFEJxP/wABppJ/+tSRNtZ2/CtbGR+riHPOc0tMhJ2DNSqcZOK8KLuew9GNCZyTwKbtXPuak3nvUbNg5zVuKBNkka84FOdFwxB6UyNwOc0lw64yOvrU6Cd7kRlTkE4xTWkUkjNY+oXfluXB+oqtDqYaVecgZqfapOxp7N2N/wCXP4VWvI0ycAYbqCODUK3asN2ccZFVdSvgrYDdaqTViY3TM268L2E0xvNO22V2vJ2rmNj7r/UVyut+Jrnw/cra63avblziKUHMcv8Aun19jzXYwaiN/BAJFU/EtrpuuaVLYajbx3FtMMMrDp7j0PvXLKlB6xOynWadp6o4e48e6eFO1+fc9K5nxT49ijhJWVenrwa8s+KGnar4N1WSOKaS60tnKwykZaM/3G/oe9eaeJvEWohFjlDKZF3LnoBWlLAuo9y6uKpU1dI7Pxz48lu2aKCQ5J4wa42zd7m5VpW3Ox5J7Vya3Unm73YsT1JroNDvI1fcTzXp/VlSjZHmLFutO8j1jw5NEkcargEDFdzp1wHVTwqgAc968h0m9wVO8Af71dvoV75mBI3B4AzXlVqbvc92lNSida0glm2qcY7jtSMfkwg4B5NV1lVEDIw5+9tqKWfkNjK9wawsat3Ou8GThL5ApBJB6+ld9bTAqSNo55Jrynw3eqmoxhidufTivQrS7yQxyB2FZT3Oerq7nS2rgHhgcdTViOQE5BOc4/yawo7rjqTj8Kk+3qq43YY8dcgVMpaHPymxJKqqzFuAMk186ftWeLFt9Eg8PQyfv9QfzJgO0Snv9TgfnXsfijXbTRfD95qd/P5Fvbpl2Pp6D37Y9xXw94/8TXfirxPd6zd5zK2Io8/6uMfdX8v1zXTluFdarzvZfmcuLr+yp2W7MFzlvxpvJz1/CkBPU0pr6k8IQ9OaUABBz97k0mM4UZyetOYkjp7UMD9TRdKvGelTxStIOAceuK/Og/Fj4gsNv/CZaz/4EnOafb/Fz4jQNui8Y60PU/aif515EMFUjuz0pYum+h+i+GP8QpGQckk1+eX/AAuz4n7MHxrq/qMSj0+lDfGn4muDu8a6wR7TAf0rb6rMn61A/Qh3VRt2nFZl9dhMgFwP92vz/m+LXxDm+/4v1g8d7k1TPxB8WSAibxBqch6gm7fjj61EsHN9So4uC6H3XfXEsj/eyp74xWdLOLSTYX2iYHYT2Ydq+KYPiN4rsg72viLU4jjn/SC2effNXJfil44bKT+Jb6VQ24CQq3PbqKxeXztoy1jYdT6zbx5p8VoXa4UMhKupPKkdRXL6r8TbAOWFyDkcAGvlK68Watc3E08127STsWkPQMfXAql/bM5ABeTg9d9VHLpfakV9epdEfWunfEi1lbAkIzxzW2njK2nXylk3O4wAOwr5B0LXJvtYjaR8dcntXc6V4tFgRM0vCjJzWVTBSh8J0UcRTqK7PUPild20sBtrgqTcAMAecelfOnxK8oSWQTaGAbIH4VqeMfiDJq2qPchmZVG2NR2FcHqV7Nf3BmmPOMKOwFehhMPKGrOHGYmMlyxK/rVm0lIOM8jpVYdKUEg5HWu6Sujzoy5WdNpeoSRsuWruvDl/5hXL/ma8stbgZHODXSaHqQhcAMR71wV6N0erhMQ09z2jSLkFGJJbPTJ6CrV1IqgkHdxzz2rhtL1hRGMSD8q011TzU2rgHuTXlSpNM9uNaMkdNo16ovoXXG4N0r0ZLwBV6M2AT83NeJWuohJU+foe/Fd5aXkklugjOAwAwOWNYV6dtRu0tjspdW2/KrH3welWbO+WSXCsN2a423ZklOUckDp/ia86+KvxHbTop9A0SUJdMuy5nQ5MY7qD/eI6ntWFLDzrzUYmFepChFuRm/tEfEJ9e1Y+HtNuc6XZSfvGVsieUd/dV5A98144x+bPWlkkLtk5pAM9a+sw9GNGmoRPma1V1Z8zHKoxinZwooX0pM8jrjrWpmAIHJHJ6Uuc9c/jSEgjkY9qUHGMUASEuhxnOOTShhu+tG32pArDiiwXG5wucj16UrOzZBwOc0bcDrnjt+FMXrye9FgHbj0Jz+FPGMEd6jwSDnINPDADBPH/ANegBJGG0jI5I7e9LOTvOSCR6UxwMoMg8joaRjuYnnmmFyMnkcnpSZ7jFLnHvTATnjmmBIk7wNuTBJ70lxe3E67JJDs/ujpUMhy1N70uVBzNaBSUtIaZItFFBoABnPHWrMFwyHgkVWHr3p4w3IOD6etJq5UXY6DTNWdCFLH8a6G31kKMBj0/hrho4pl52Nj2q5bvKBtIYfhXNOkmdlLEySsdxbaiSytvyc/jXq3g26SWwWWRl2AZYk447nPpXz0l+bdSTICR0ANP1DxTqdzYDT/tLx2w6xocBvr6/SuStgnVVlodtPMI0076np/xQ+JcMAl0nw3KpY8S3anIU91Q9/8Ae/KvFppDIxYkkk5JJ61GzluaFyTXbh8NChG0TzMRiJ1pXkKoz+FPXrSD65pwIwQSBW9zAViKaT1UY96Qkj/e9PT3pMYGKQx/OeCPxoJIz1xQOaax6800BaIG7g80n8Jw/PHFPbnnPBHpTRtIIyMZ7CgSG4JGGx0/wpNuARx1/wAaeo4BOAOlBORgkDv/ADpDISAPrx3oyAfYUrgAnn8RUZyOcnFNCuK5+ZevXOQaQnqO+etIc5xgCgnjkj0phcQ5xnNMU804njP4VGeKBCNyxNIaO9B6UAFBopV5YCgBMZGacy4UEHr1p7gbU4x8tI3+pHsxFAEYooo70APSR1PDH86VpZGBBYn8aao4pQvNAxMsetGadtoAz3oAQY9acPY0AVIqkjOcD1PSkwsA9z/n0pWG33c9AO31pRknMfToWP8ASmn5OFOSe/ehDG8juCT1zS5G7vimnr/OnqCRgHpQICTjjHWmsSc9qc2Ka3HbFNBc0ACWz0B6H8aYRjqB75qbb1OcDp1/SoiTt5Jz64qRke7naAM9z60hPbA+v4VIwzwB/nimhSFzjIHByPWgTGOOSeOtRMuOcEfjVtMH1HPFI8e/kg9BjimFikwJyR0FN9eKuPEMHjBCjNV2UBQfamIYc7Tx7UwAE4PFSKM8dKTZg5GT7HvQBGyFcnqKbVkL8o9D+lRSJsP16UARgU5R8wpO9OX74+tADmHCcfw01+Bt96cekfpimyDDdKYDRSqMkcZHtTaVW2nIpATbQfusPoTg0bG54/WmhgeoB/CnAIeoxQMNjck4H40YTnc34KM04ImKdvUcYA9cCkxiZ4+SM/VjSgchpCW9Pak8z8Ka7kjigCSSU9OgqFeec00c8VIBhcmmAgznpx60A45pMEGgtnmkhMcxyfXFIenNBJOD0pBnGaYjbkiw5HbHX3qJoyGyB/8AW61dJY4OMNnoR/n/ADmmAKSoOCGPJ9Af/rCpKKYjGdoznOCfWkaIkdMDt+Oav4XIAPJI59Dyf8KYoUY6E8c/gaBWKaoV+gBP171Ls3JjGMfLwalKjaD1Hy9/UYpuVKhgQeQT/WgZE0ZGefvcEdxVWaJ9mMEYq47jaR5TEn2qOVgPvKyjHJxkUxMzkUjkgjtSt0HNS7QzkISealjtwhEkoyv8IPG6mIighZgMg8Dk46VFdqqgbTnmtF8rFuONzcnH8qzZgzBjjoaQyA0q8MD7009KUcimIew+QDoVY5qN3yAD2qQugm3hPlA5Vue3fHvVs2LzRr5Xl7gMkKeDnoBQ3YLGeDS7T1xSygrKVI247U9MFaAIhkU4GlZfX8KZ0oAkB+tKOuetMUj0p4YYxmgBSe3NNJ/zihj9KFHbk0AOQY5xxT/qBikB45HPrQOATj8qChOOnehfr0ozjtR7UEi9BketIQPTHFKDnAx060jfcxQB/9k=';
+const LS_KEY = 'matchingmon-dogam-v1';
+const SEED = {"cells": [{"names": ["행복"], "hl": false, "mgr": false}, {"names": ["복복"], "hl": false, "mgr": false}, {"names": ["와삽"], "hl": false, "mgr": false}, {"names": ["유아"], "hl": false, "mgr": false}, {"names": ["이지"], "hl": false, "mgr": false}, {"names": ["라이"], "hl": false, "mgr": false}, {"names": ["설탕"], "hl": false, "mgr": false}, {"names": ["우는"], "hl": false, "mgr": false}, {"names": ["츄릅"], "hl": false, "mgr": false}, {"names": ["맹구"], "hl": false, "mgr": false}, {"names": ["동이"], "hl": false, "mgr": false}, {"names": ["만두"], "hl": false, "mgr": false}, {"names": ["차영"], "hl": false, "mgr": false}, {"names": ["윤서"], "hl": false, "mgr": true}, {"names": ["지희"], "hl": false, "mgr": false}, {"names": ["류크"], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": ["디엘"], "hl": false, "mgr": false}, {"names": ["미나"], "hl": false, "mgr": false}, {"names": ["우나"], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": ["릴라"], "hl": false, "mgr": false}, {"names": ["우연"], "hl": false, "mgr": false}, {"names": ["눈물"], "hl": false, "mgr": false}, {"names": ["거나"], "hl": false, "mgr": false}, {"names": ["서나"], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": ["딸기"], "hl": false, "mgr": false}, {"names": ["공백"], "hl": false, "mgr": false}, {"names": ["나영"], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": ["현수"], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": ["당근"], "hl": false, "mgr": false}, {"names": ["성의"], "hl": false, "mgr": false}, {"names": ["콩츄"], "hl": false, "mgr": false}, {"names": ["시아"], "hl": false, "mgr": false}, {"names": ["나우"], "hl": false, "mgr": false}, {"names": [], "hl": false, "mgr": false}, {"names": ["도준"], "hl": false, "mgr": true}, {"names": ["주영"], "hl": false, "mgr": false}]};
+
+const $ = id => document.getElementById(id);
+const clone = o => JSON.parse(JSON.stringify(o));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const label = i => i === OWNER ? '방장 칸' : `${i + 1}번`;
+
+function emptyBoard() {
+  const cells = Array.from({ length: N }, () => ({ names: [], hl: false, mgr: false }));
+  cells.push({ names: ['주영'], hl: false, mgr: false });
+  return { cells };
+}
+function normalize(b) {
+  const base = emptyBoard();
+  if (!b || !Array.isArray(b.cells)) return base;
+  base.cells = base.cells.map((d, i) => {
+    const c = b.cells[i] || {};
+    return { names: Array.isArray(c.names) ? c.names.map(String).filter(Boolean) : d.names, hl: !!c.hl, mgr: !!c.mgr };
+  });
+  return base;
+}
+
+let S = emptyBoard();
+let photo = DEFAULT_PHOTO;
+let prev = null, selected = null, editing = null;
+let db = null, boardRef = null, photoRef = null, readOnly = false;
+
+function lsGet() { try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (_) { return null; } }
+function lsSet() { try { localStorage.setItem(LS_KEY, JSON.stringify({ board: S, photo })); } catch (_) {} }
+
+function toast(msg, ms = 2400) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms);
+}
+function status(text, kind) { $('statusText').textContent = text; $('dot').className = 'dot' + (kind ? ' ' + kind : ''); }
+
+function lum(hex) {
+  const v = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16) / 255).map(c => c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4));
+  return .2126 * v[0] + .7152 * v[1] + .0722 * v[2];
+}
+
+// ---------- 그리기 ----------
+function render() {
+  const g = $('grid'); g.innerHTML = '';
+  S.cells.forEach((c, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (i === OWNER ? ' owner' : '');
+    const b = document.createElement('button');
+    b.className = 'cell'; b.type = 'button';
+    if (c.hl) b.classList.add('hl');
+    if (selected === i) b.classList.add('sel');
+    let html = '';
+    if (i === OWNER) {
+      if (photo) b.style.backgroundImage = `url("${photo}")`;
+      html = '<span class="crown" aria-hidden="true">👑</span>';
+      b.setAttribute('aria-label', `방장 ${c.names.join(', ')}`);
+    } else {
+      const hex = PALETTE[i];
+      b.style.background = hex;
+      b.style.color = lum(hex) < .18 ? '#FFFFFF' : '#151515';
+      if (lum(hex) < .02) b.classList.add('edge');
+      const n = c.names;
+      if (n.length > 1) b.classList.add('dup');
+      if (n.length === 1) html += `<span class="nm s1">${esc(n[0])}</span>`;
+      else if (n.length === 2) html += `<span class="nm s2">${esc(n[0])}</span><span class="nm s2">${esc(n[1])}</span>`;
+      else if (n.length > 2) html += `<span class="nm s2">${esc(n[0])}</span><span class="more">외 ${n.length - 1}명</span>`;
+      if (n.length > 1) html += `<span class="badge dup">중복 ${n.length}</span>`;
+      if (c.mgr) html += '<span class="badge mgr">부방장</span>';
+      b.setAttribute('aria-label', `${i + 1}번${n.length ? ' ' + n.join(', ') : ' 비어 있음'}`);
+    }
+    b.innerHTML = html;
+    b.addEventListener('click', e => { e.stopPropagation(); onCell(i); });
+    slot.appendChild(b);
+    const under = document.createElement('span');
+    if (i === OWNER) { under.className = 'oname'; under.textContent = c.names.join(', '); }
+    else { under.className = 'num'; under.textContent = i + 1; }
+    slot.appendChild(under);
+    g.appendChild(slot);
+  });
+  const t = document.createElement('div'); t.className = 'title'; t.textContent = '매칭몬 도감';
+  g.appendChild(t);
+
+  const dups = S.cells.slice(0, N).map((c, i) => ({ c, i })).filter(x => x.c.names.length > 1);
+  $('dupline').hidden = !dups.length;
+  $('dupline').textContent = '중복 ' + dups.length + '칸: ' + dups.map(x => `${x.i + 1}번 (${x.c.names.join(', ')})`).join(' · ');
+  $('undoBtn').disabled = !prev || readOnly;
+  for (const id of ['clearHlBtn', 'resetBtn']) $(id).disabled = readOnly;
+}
+
+// ---------- 저장 ----------
+let saveTimer = null, saving = false, dirty = false, lastSaved = '';
+function change(fn) {
+  if (readOnly) return;
+  prev = clone(S);
+  fn();
+  afterChange();
+}
+function afterChange() {
+  lsSet(); render();
+  if (!boardRef) return;
+  dirty = true;
+  clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400);
+}
+async function flush() {
+  if (!boardRef || saving || !dirty) return;
+  saving = true; dirty = false;
+  const body = clone(S), json = JSON.stringify(body);
+  try {
+    if (json !== lastSaved) { await boardRef.set(body); lastSaved = json; }
+    status('저장됨', 'ok');
+  } catch (e) {
+    if (e && e.code === 'invalid_argument') { setReadOnly(); }
+    else { status('저장 실패 · 이 기기에는 남아 있음', 'warn'); toast('저장하지 못했습니다. 잠시 후 다시 수정하면 다시 저장합니다.', 3500); }
+  } finally {
+    saving = false;
+    if (dirty) flush();
+  }
+}
+async function savePhoto() {
+  lsSet(); render();
+  if (!photoRef) return;
+  try { await photoRef.set({ data: photo || '' }); status('저장됨', 'ok'); }
+  catch (e) { toast('사진을 저장하지 못했습니다. 더 작은 사진으로 다시 해보세요.', 3500); }
+}
+function setReadOnly() {
+  readOnly = true; status('보기 전용', ''); hideMenu(); render();
+}
+
+// ---------- 칸 메뉴 ----------
+function onCell(i) {
+  if (document.body.classList.contains('capture')) return endCapture();
+  if (readOnly) return;
+  selected = i; render(); showMenu(i);
+}
+function showMenu(i) {
+  const c = S.cells[i], m = $('menu');
+  const sw = i === OWNER ? `<span class="sw" style="background-image:url('${photo}');background-color:#141414"></span>` : `<span class="sw" style="background:${PALETTE[i]}"></span>`;
+  m.innerHTML = `<div class="head">${sw}${label(i)} · ${esc(c.names.join(', ') || '비어 있음')}</div>
+    <button type="button" class="btn" data-a="edit">수정</button>
+    <button type="button" class="btn danger" data-a="del" ${c.names.length ? '' : 'disabled'}>삭제</button>
+    <button type="button" class="btn wide ${c.hl ? 'on' : ''}" data-a="hl">${c.hl ? '하이라이트 끄기' : '하이라이트'}</button>` +
+    (i === OWNER
+      ? `<button type="button" class="btn" data-a="photo">사진 변경</button><button type="button" class="btn danger" data-a="nophoto" ${photo ? '' : 'disabled'}>사진 삭제</button>`
+      : `<button type="button" class="btn wide ${c.mgr ? 'on' : ''}" data-a="mgr">${c.mgr ? '부방장 표시 끄기' : '부방장 표시'}</button>`);
+  m.hidden = false;
+  const cellEl = $('grid').children[i].querySelector('.cell');
+  const bx = $('board').getBoundingClientRect(), cx = cellEl.getBoundingClientRect();
+  let left = cx.left - bx.left + cx.width / 2 - 105;
+  left = Math.max(6, Math.min(left, bx.width - 216));
+  let top = cx.bottom - bx.top + 22;
+  if (cx.bottom + m.offsetHeight + 30 > window.innerHeight) top = cx.top - bx.top - m.offsetHeight - 14;
+  m.style.left = left + 'px'; m.style.top = top + 'px';
+  m.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); act(b.dataset.a, i); }));
+}
+function hideMenu() { $('menu').hidden = true; if (selected !== null) { selected = null; render(); } }
+document.addEventListener('click', e => { if (!e.target.closest('.menu') && !e.target.closest('.modal')) hideMenu(); });
+
+function act(a, i) {
+  const c = S.cells[i];
+  if (a === 'edit') { $('menu').hidden = true; return openEdit(i); }
+  if (a === 'photo') { $('menu').hidden = true; return pickPhoto(); }
+  if (a === 'nophoto') { photo = ''; savePhoto(); return showMenu(i); }
+  change(() => {
+    if (a === 'del') { c.names = []; toast(`${label(i)} 닉네임을 지웠습니다`); }
+    if (a === 'hl') c.hl = !c.hl;
+    if (a === 'mgr') c.mgr = !c.mgr;
+  });
+  if (a === 'del') hideMenu(); else showMenu(i);
+}
+
+// ---------- 닉네임 수정 ----------
+function addRow(v = '') {
+  const r = document.createElement('div'); r.className = 'row';
+  const id = 'nm' + Math.random().toString(36).slice(2, 8);
+  r.innerHTML = `<input id="${id}" type="text" maxlength="2" placeholder="두 글자" value="${esc(v)}" enterkeyhint="done" aria-label="닉네임"><button type="button" class="btn" aria-label="이 이름 지우기">✕</button>`;
+  r.querySelector('button').onclick = () => { r.remove(); if (!$('rows').children.length) addRow().focus(); };
+  $('rows').appendChild(r);
+  return r.querySelector('input');
+}
+function openEdit(i) {
+  editing = i;
+  $('editTitle').textContent = `${label(i)} 닉네임`;
+  $('rows').innerHTML = ''; $('editErr').textContent = '';
+  const names = S.cells[i].names.length ? S.cells[i].names : [''];
+  const inputs = names.map(n => addRow(n));
+  $('editModal').hidden = false;
+  const first = inputs[0]; first.focus(); first.select(); // 탭한 순간 바로 포커스해야 휴대폰 키보드가 열림
+}
+$('addRow').onclick = () => addRow().focus();
+$('editForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const out = [];
+  for (const inp of $('rows').querySelectorAll('input')) {
+    const v = inp.value.trim();
+    if (!v) continue;
+    if (Array.from(v).length !== 2) { $('editErr').textContent = `"${v}" — 두 글자로 입력하세요.`; inp.focus(); return; }
+    out.push(v);
+  }
+  const i = editing;
+  change(() => { S.cells[i].names = out; });
+  $('editModal').hidden = true; hideMenu();
+});
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('.modal').hidden = true));
+document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.hidden = true; }));
+
+// ---------- 방장 사진 ----------
+function pickPhoto() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(img.width, img.height), cv = document.createElement('canvas');
+      cv.width = cv.height = 240;
+      cv.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 240, 240);
+      photo = cv.toDataURL('image/jpeg', 0.85);
+      URL.revokeObjectURL(img.src);
+      savePhoto(); toast('방장 사진을 바꿨습니다');
+    };
+    img.onerror = () => toast('이 이미지는 열 수 없습니다. JPG나 PNG로 다시 골라주세요.', 3500);
+    img.src = URL.createObjectURL(f);
+  };
+  inp.click();
+}
+
+// ---------- 도구 막대 ----------
+$('undoBtn').onclick = () => { if (!prev) return; S = prev; prev = null; afterChange(); toast('직전 상태로 되돌렸습니다'); };
+$('clearHlBtn').onclick = () => { if (S.cells.some(c => c.hl)) change(() => S.cells.forEach(c => c.hl = false)); };
+$('resetBtn').onclick = () => { $('resetModal').hidden = false; };
+$('resetOk').onclick = () => {
+  change(() => S.cells.forEach((c, i) => { if (i !== OWNER) c.names = []; c.hl = false; c.mgr = false; }));
+  $('resetModal').hidden = true; toast('초기화했습니다. [되돌리기]로 되돌릴 수 있습니다', 3000);
+};
+$('captureBtn').onclick = e => { e.stopPropagation(); hideMenu(); capture(); };
+function endCapture() {}
+
+// ---------- 캡처: 화면 크기와 상관없이 항상 같은 규격의 PNG로 그림 ----------
+const SHOT = { W: 1080, C: 132, PAD: 54, TOP: 64, NUM: 56, ROW: 30, BOTTOM: 48 };
+SHOT.GAP = (SHOT.W - SHOT.PAD * 2 - SHOT.C * 6) / 5;
+SHOT.H = SHOT.TOP + 8 * SHOT.C + 8 * SHOT.NUM + 7 * SHOT.ROW + SHOT.BOTTOM;
+let lastShot = null;
+
+function loadImg(src) {
+  return new Promise(res => { if (!src) return res(null); const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+}
+function pill(ctx, cx, y, text, bg, fg, size) {
+  ctx.font = `700 ${size}px ${FONT_UI}`;
+  const w = ctx.measureText(text).width + size * 1.1, h = size * 1.55;
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(cx - w / 2, y - h / 2, w, h, h / 2); ctx.fill();
+  ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, cx, y + size * .04);
+}
+const FONT_UI = '"Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+
+async function drawShot() {
+  const { W, H, C, PAD, TOP, NUM, ROW, GAP } = SHOT;
+  const allText = S.cells.flatMap(c => c.names).join('') + '매칭몬도감부방장중복외명0123456789';
+  try {
+    await Promise.all([
+      document.fonts.load(`900 40px "Noto Sans KR"`, allText),
+      document.fonts.load(`700 40px "Noto Sans KR"`, allText),
+      document.fonts.load(`500 40px "Noto Sans KR"`, '0123456789'),
+      document.fonts.load(`40px "Jua"`, '매칭몬 도감')
+    ]);
+  } catch (_) {}
+  const ph = await loadImg(photo);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#1E1E1E'; ctx.fillRect(0, 0, W, H);
+  const k = C / 76; // 화면 대비 배율
+
+  S.cells.forEach((c, i) => {
+    const col = i % 6, row = Math.floor(i / 6);
+    const cx = PAD + col * (C + GAP) + C / 2;
+    const top = TOP + row * (C + NUM + ROW);
+    const cy = top + C / 2, r = C / 2;
+
+    if (c.hl) {
+      ctx.save(); ctx.shadowColor = 'rgba(255,255,255,.6)'; ctx.shadowBlur = 12 * k;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3 * k;
+      ctx.beginPath(); ctx.arc(cx, cy, r + 8.5 * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    if (i === OWNER) {
+      ctx.save(); ctx.clip(); ctx.fillStyle = '#141414'; ctx.fillRect(cx - r, cy - r, C, C);
+      if (ph) { const s = Math.min(ph.width, ph.height); ctx.drawImage(ph, (ph.width - s) / 2, (ph.height - s) / 2, s, s, cx - r, cy - r, C, C); }
+      ctx.restore();
+      ctx.strokeStyle = '#E8B931'; ctx.lineWidth = 2 * k; ctx.beginPath(); ctx.arc(cx, cy, r - k, 0, Math.PI * 2); ctx.stroke();
+      ctx.font = `${C * .3}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('👑', cx, top - C * .12);
+      ctx.fillStyle = '#FFFFFF'; ctx.font = `900 ${C * .24}px ${FONT_UI}`; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(c.names.join(', '), cx, top + C + NUM * .78);
+      return;
+    }
+    const hex = PALETTE[i];
+    ctx.fillStyle = hex; ctx.fill();
+    if (lum(hex) < .02) { ctx.strokeStyle = '#555'; ctx.lineWidth = 1.5 * k; ctx.beginPath(); ctx.arc(cx, cy, r - .75 * k, 0, Math.PI * 2); ctx.stroke(); }
+    const n = c.names;
+    if (n.length > 1) {
+      ctx.save(); ctx.setLineDash([6 * k, 4 * k]); ctx.strokeStyle = '#FF5A5F'; ctx.lineWidth = 2.5 * k;
+      ctx.beginPath(); ctx.arc(cx, cy, r + 6 * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    ctx.fillStyle = lum(hex) < .18 ? '#FFFFFF' : '#151515';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (n.length === 1) { ctx.font = `900 ${C * .3}px ${FONT_UI}`; ctx.fillText(n[0], cx, cy + C * .015); }
+    else if (n.length === 2) { ctx.font = `900 ${C * .22}px ${FONT_UI}`; ctx.fillText(n[0], cx, cy - C * .12); ctx.fillText(n[1], cx, cy + C * .12); }
+    else if (n.length > 2) { ctx.font = `900 ${C * .22}px ${FONT_UI}`; ctx.fillText(n[0], cx, cy - C * .1); ctx.font = `700 ${C * .15}px ${FONT_UI}`; ctx.fillText(`외 ${n.length - 1}명`, cx, cy + C * .14); }
+    if (n.length > 1) pill(ctx, cx, top + C + 1 * k, `중복 ${n.length}`, '#FF5A5F', '#FFFFFF', 10.5 * k);
+    if (c.mgr) {
+      ctx.save(); ctx.fillStyle = '#1E1E1E'; ctx.font = `700 ${10.5 * k}px ${FONT_UI}`;
+      const w = ctx.measureText('부방장').width + 10.5 * k * 1.1 + 4 * k, h = 10.5 * k * 1.55 + 4 * k;
+      ctx.beginPath(); ctx.roundRect(cx - w / 2, top - h / 2 - 1 * k, w, h, h / 2); ctx.fill(); ctx.restore();
+      pill(ctx, cx, top - 1 * k, '부방장', '#E9ECEF', '#333333', 10.5 * k);
+    }
+    ctx.fillStyle = '#8C8C8C'; ctx.font = `500 ${12 * k}px ${FONT_UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(String(i + 1), cx, top + C + NUM * .8);
+  });
+
+  // 제목 (마지막 줄 5~6번째 자리)
+  const tx = PAD + 4 * (C + GAP) + (C * 2 + GAP) / 2, ty = TOP + 7 * (C + NUM + ROW) + C / 2;
+  ctx.fillStyle = '#FFFFFF'; ctx.font = `${C * .42}px "Jua", ${FONT_UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('매칭몬 도감', tx, ty);
+  return cv;
+}
+
+function stamp() {
+  const d = new Date(), z = v => String(v).padStart(2, '0');
+  return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
+}
+async function capture() {
+  const btn = $('captureBtn'); btn.disabled = true; btn.textContent = '만드는 중…';
+  try {
+    const cv = await drawShot();
+    const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+    if (!blob) throw new Error('이미지를 만들지 못했습니다');
+    lastShot = { blob, name: `matchingmon_${stamp()}.png` };
+    $('shotImg').src = cv.toDataURL('image/png');
+    const dl = true;
+    $('shotSave').hidden = false;
+    $('shotMsg').textContent = '공유 창에서 [이미지 저장]을 누르거나, 이미지를 길게 눌러 사진에 저장하세요.'
+      + ` 크기는 항상 ${SHOT.W} × ${SHOT.H}입니다.`;
+    $('shotModal').hidden = false;
+    saveShot();
+  } catch (e) {
+    toast('캡처 이미지를 만들지 못했습니다. 다시 눌러주세요.', 3000);
+  } finally { btn.disabled = false; btn.textContent = '캡처 저장'; }
+}
+async function saveShot() {
+  if (!lastShot) return;
+  const file = new File([lastShot.blob], lastShot.name, { type: 'image/png' });
+  // 휴대폰: 공유 창 → [이미지 저장] / PC: 파일 다운로드
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: '매칭몬 도감' }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(lastShot.blob); a.download = lastShot.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('저장했습니다');
+}
+$('shotSave').onclick = () => saveShot();
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { endCapture(); hideMenu(); document.querySelectorAll('.modal').forEach(m => m.hidden = true); } });
+
+// ---------- 시작 ----------
+(function boot() {
+  const cached = lsGet();
+  if (cached) { S = normalize(cached.board); if (typeof cached.photo === 'string') photo = cached.photo; }
+  else { S = normalize(SEED); lsSet(); }
+  render();
+  status('이 기기에 저장됨', 'ok');
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (_) {}
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+
+</script>
+
+</body>
+</html>

@@ -202,16 +202,16 @@ body.capture .board { margin-top: 12px; }
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 'use strict';
-// 45색: 왼쪽 위 1번부터 가로로 번호. 실제 프로필 색으로 보정한 값 포함
+// 45색: 왼쪽 위 1번부터 가로로 번호. 방장이 보내준 색상표 이미지 3장에서 추출
 const PALETTE = [
-  '#F8D016', '#D7363B', '#FA7F60', '#F5952F', '#82AB33', '#3A9260',
-  '#309085', '#2B95A2', '#3C91CB', '#3C6095', '#635793', '#844EA6',
-  '#D25597', '#BB3B52', '#F9E278', '#E08982', '#E18875', '#DDA260',
-  '#A0B360', '#73B97B', '#7AB9B5', '#83B3BF', '#71A7CE', '#7A95C4',
-  '#9789C6', '#B884CC', '#E581B7', '#DA8894', '#F1EDBE', '#F3CFCF',
-  '#F3C7BA', '#E7C59F', '#DEE8A4', '#A9D9B3', '#C2E4E9', '#BAE0E9',
-  '#B4D4EB', '#BACAE4', '#CFC8F2', '#D8BFE3', '#F0C5D9', '#F5D0D7',
-  '#F9F9F7', '#B1B1B1', '#141414'
+  '#FCDF00', '#EC4E45', '#F67E59', '#F1952E', '#8CBB2D', '#4CA064',
+  '#25A09B', '#27A2B2', '#419BD0', '#43669C', '#6E5EA9', '#8D56B4',
+  '#CF5495', '#D44865', '#FCEE8B', '#F09896', '#EC9E88', '#EAB476',
+  '#B1C06B', '#81CD8D', '#8CC9C1', '#96C5CD', '#7EB6D7', '#85A1D1',
+  '#A69EDA', '#B081C5', '#E17FB2', '#EB9DAB', '#F6F1D3', '#F7DBD7',
+  '#F7D5C9', '#EFD7BB', '#E8F3B9', '#BCE8C5', '#C9EFF2', '#C1ECF3',
+  '#C2E3F4', '#CADAF1', '#D8DAF1', '#DED0EA', '#F8D3E4', '#FDE0E2',
+  '#FFFFFF', '#C2C4C3', '#1C1C1C'
 ];
 const N = PALETTE.length;         // 45
 const OWNER = N;                  // 46번째 칸 = 방장 칸 (번호 없음)

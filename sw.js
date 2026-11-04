@@ -1,5 +1,5 @@
 // 오프라인 실행용 캐시. 앱 파일과 글꼴·Firebase 라이브러리만 저장하고, 실시간 데이터 통신은 건드리지 않음
-const CACHE = 'matchingmon-v4';
+const CACHE = 'matchingmon-v5';
 const FILES = ['./', './index.html', './manifest.json', './firebase-config.js', './icon-192.png', './icon-512.png'];
 const CACHEABLE = u => u.origin === self.location.origin || u.hostname === 'www.gstatic.com' || u.hostname.endsWith('fonts.googleapis.com') || u.hostname.endsWith('fonts.gstatic.com');
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });

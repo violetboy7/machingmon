@@ -260,6 +260,9 @@ function lum(hex) {
 }
 
 const filledCount = () => S.cells.slice(0, N).filter(c => c.names.length).length;
+// 인증 인원: 닉네임이 있고 ❄️ 표시된 칸 수 (방장 칸 제외)
+const certCount = () => S.cells.slice(0, N).filter(c => c.names.length && c.hl).length;
+const countText = () => `(❄️${certCount()}) ${filledCount()} / ${N}`;
 
 // ---------- 그리기 ----------
 function render() {
@@ -300,7 +303,7 @@ function render() {
     g.appendChild(slot);
   });
   const t = document.createElement('div'); t.className = 'title';
-  t.innerHTML = `<span>매칭몬 도감</span><span class="count">${filledCount()} / ${N}</span>`;
+  t.innerHTML = `<span>매칭몬 도감</span><span class="count">${countText()}</span>`;
   g.appendChild(t);
 
   const dups = S.cells.slice(0, N).map((c, i) => ({ c, i })).filter(x => x.c.names.length > 1);
@@ -556,7 +559,8 @@ async function drawShot() {
   ctx.fillStyle = '#FFFFFF'; ctx.font = `${C * .42}px "Jua", ${FONT_UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('매칭몬 도감', tx, ty - C * .1);
   ctx.fillStyle = '#8C8C8C'; ctx.font = `700 ${C * .2}px ${FONT_UI}`;
-  ctx.fillText(`${filledCount()} / ${N}`, tx, ty + C * .3);
+  ctx.font = `700 ${C * .2}px "Noto Sans KR", "Noto Sans CJK KR", "Apple SD Gothic Neo", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.fillText(countText(), tx, ty + C * .3);
   return cv;
 }
 

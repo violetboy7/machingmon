@@ -70,7 +70,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .cell .s2 { font-size: calc(var(--cell) * .22); }
 .cell .more { font-size: calc(var(--cell) * .15); font-weight: 700; opacity: .85; }
 .cell.sel { box-shadow: 0 0 0 3px var(--board), 0 0 0 5px #fff; }
-.cell .cert { font-size: calc(var(--cell) * .19); line-height: 1; margin-bottom: calc(var(--cell) * .01); filter: drop-shadow(0 0 1px rgba(0,0,0,.55)) drop-shadow(0 0 2px rgba(0,0,0,.25)); }
+.cell.two .cert { top: calc(var(--cell) * .02); }
+.cell .cert { position: absolute; left: 50%; top: calc(var(--cell) * .07); transform: translateX(-50%); font-size: calc(var(--cell) * .19); line-height: 1; pointer-events: none; filter: drop-shadow(0 0 1px rgba(0,0,0,.55)) drop-shadow(0 0 2px rgba(0,0,0,.25)); }
 .owner .ocert { font-size: .85em; margin-right: 1px; }
 .cell.dup::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2.5px dashed var(--danger); pointer-events: none; }
 .badge { position: absolute; left: 50%; transform: translateX(-50%); font-size: clamp(8px, 2.3vw, 10.5px); font-weight: 700; padding: 1px 5px; border-radius: 8px; white-space: nowrap; pointer-events: none; z-index: 3; line-height: 1.4; }
@@ -281,10 +282,10 @@ function render() {
     } else {
       const hex = PALETTE[i];
       b.style.background = hex;
-      b.style.color = lum(hex) < .18 ? '#FFFFFF' : '#151515';
+      b.style.color = lum(hex) < .02 ? '#FFFFFF' : '#151515';
       if (lum(hex) < .02) b.classList.add('edge');
       const n = c.names;
-      if (n.length > 1) b.classList.add('dup');
+      if (n.length > 1) b.classList.add('dup', 'two');
       if (c.hl) html += '<span class="cert" aria-label="인증">❄️</span>';
       if (n.length === 1) html += `<span class="nm s1">${esc(n[0])}</span>`;
       else if (n.length === 2) html += `<span class="nm s2">${esc(n[0])}</span><span class="nm s2">${esc(n[1])}</span>`;
@@ -523,10 +524,9 @@ async function drawShot() {
       ctx.beginPath(); ctx.arc(cx, cy, r + 6 * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const dy = c.hl ? C * .08 : 0;
-    if (c.hl) { ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 3 * k; ctx.font = `${C * .19}px ${EMOJI}`; ctx.fillText('❄️', cx, cy - C * (n.length > 1 ? .33 : .22)); ctx.restore(); }
-    ctx.fillStyle = lum(hex) < .18 ? '#FFFFFF' : '#151515';
-    ctx.save(); ctx.translate(0, n.length > 1 ? dy * .6 : dy);
+    if (c.hl) { ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 3 * k; ctx.font = `${C * .19}px ${EMOJI}`; ctx.fillText('❄️', cx, cy - C * (n.length > 1 ? .39 : .33)); ctx.restore(); }
+    ctx.fillStyle = lum(hex) < .02 ? '#FFFFFF' : '#151515';
+    ctx.save();
     if (n.length === 1) { ctx.font = `900 ${C * .3}px ${FONT_UI}`; ctx.fillText(n[0], cx, cy + C * .015); }
     else if (n.length === 2) { ctx.font = `900 ${C * .22}px ${FONT_UI}`; ctx.fillText(n[0], cx, cy - C * .12); ctx.fillText(n[1], cx, cy + C * .12); }
     else if (n.length > 2) { ctx.font = `900 ${C * .22}px ${FONT_UI}`; ctx.fillText(n[0], cx, cy - C * .1); ctx.font = `700 ${C * .15}px ${FONT_UI}`; ctx.fillText(`외 ${n.length - 1}명`, cx, cy + C * .14); }

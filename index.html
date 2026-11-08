@@ -76,6 +76,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .admin .cell.ring { box-shadow: 0 0 0 3px var(--board), 0 0 0 6px var(--ring); }
 .admin .cell.sel { box-shadow: 0 0 0 3px var(--board), 0 0 0 6px var(--ring, #fff), 0 0 0 9px #fff; }
 .admin .cell.blank { background: transparent; border: 2px dashed #4A4A4A; color: var(--muted); font-size: calc(var(--cell) * .16); font-weight: 700; }
+.admin .amark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
+  font-weight: 900; line-height: 1; letter-spacing: -.03em; white-space: nowrap; color: #fff;
+  text-shadow: 0 0 3px rgba(0,0,0,.75), 0 1px 2px rgba(0,0,0,.6); }
 .admin .acrown { position: absolute; left: 50%; top: calc(var(--cell) * -.2); transform: translateX(-50%); z-index: 3; pointer-events: none;
   width: calc(var(--cell) * .3); height: calc(var(--cell) * .3); border-radius: 50%; background: #F23CD5;
   box-shadow: 0 0 0 2px var(--board), 0 1px 3px rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; }
@@ -205,6 +208,20 @@ body.capture .board { margin-top: 12px; }
   </form>
 </div>
 
+<div class="modal" id="emojiModal" hidden>
+  <form class="dialog" id="emojiForm" autocomplete="off">
+    <h2>가운데 이모지/글자</h2>
+    <p>관리자 사진(또는 색) 가운데에 표시됩니다. 이모지나 글자를 1~3개까지 넣을 수 있습니다.</p>
+    <div class="row"><input id="emojiInput" type="text" placeholder="예: 💖 / 🐰✨ / 부방" enterkeyhint="done" aria-label="가운데 글자"></div>
+    <div class="err" id="emojiErr"></div>
+    <div class="actions">
+      <button type="button" class="btn danger" id="emojiClear">지우기</button>
+      <button type="button" class="btn" data-close>취소</button>
+      <button type="submit" class="btn primary">확인</button>
+    </div>
+  </form>
+</div>
+
 <div class="modal" id="colorModal" hidden>
   <div class="dialog">
     <h2 id="colorTitle">관리자 색 고르기</h2>
@@ -288,7 +305,8 @@ function normAdmins(list) {
     id: String((a && a.id) || Math.random().toString(36).slice(2, 10)),
     name: String((a && a.name) || ''),
     color: (a && Number.isInteger(a.color) && a.color >= 0 && a.color < N) ? a.color : null,
-    photo: (a && typeof a.photo === 'string') ? a.photo : ''
+    photo: (a && typeof a.photo === 'string') ? a.photo : '',
+    emoji: (a && typeof a.emoji === 'string') ? a.emoji : ''
   }));
 }
 function normalize(b) {
@@ -301,6 +319,12 @@ function normalize(b) {
   base.admins = normAdmins(b.admins);
   return base;
 }
+// 글자 수 (이모지 하나 = 1글자로 셈)
+function glyphs(t) {
+  try { if (window.Intl && Intl.Segmenter) return Array.from(new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(t), x => x.segment); } catch (_) {}
+  return Array.from(t);
+}
+const markScale = t => [0, .44, .32, .24][Math.min(3, Math.max(1, glyphs(t).length))];
 const cellsJSON = () => JSON.stringify(S.cells);
 const adminsJSON = () => JSON.stringify(S.admins);
 
@@ -388,7 +412,8 @@ function render() {
     if (hex) { b.style.setProperty('--ring', hex); b.classList.add('ring'); if (lum(hex) < .02) b.classList.add('dark'); }
     if (a.photo) b.style.backgroundImage = `url("${a.photo}")`;
     else if (hex) b.style.background = hex;
-    else { b.classList.add('blank'); b.textContent = '관리자'; }
+    else if (!a.emoji) { b.classList.add('blank'); b.textContent = '관리자'; }
+    if (a.emoji) b.insertAdjacentHTML('beforeend', `<span class="amark" style="font-size:calc(var(--cell) * ${markScale(a.emoji)})">${esc(a.emoji)}</span>`);
     b.insertAdjacentHTML('beforeend', '<span class="acrown" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 8.2 7.6 11.6 12 5 16.4 11.6 21 8.2 19.2 18H4.8Z" fill="#fff" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></span>');
     b.setAttribute('aria-label', `관리자 ${a.name || '이름 없음'}`);
     sl.appendChild(b);
@@ -486,7 +511,8 @@ function showMenu(key) {
       <button type="button" class="btn" data-a="aname">이름 수정</button>
       <button type="button" class="btn danger" data-a="adel">삭제</button>
       <button type="button" class="btn" data-a="acolor">색 선택</button>
-      <button type="button" class="btn" data-a="aphoto">사진 넣기</button>` +
+      <button type="button" class="btn" data-a="aphoto">사진 넣기</button>
+      <button type="button" class="btn wide" data-a="aemoji">${a.emoji ? `가운데 글자 · ${esc(a.emoji)}` : '가운데 이모지/글자 넣기'}</button>` +
       (a.photo ? '<button type="button" class="btn wide danger" data-a="anophoto">사진 삭제</button>' : '');
     m.hidden = false; placeMenu(key); return;
   }
@@ -510,6 +536,7 @@ function act(a, key, btn) {
     if (a === 'aname') { $('menu').hidden = true; return openEdit(key); }
     if (a === 'acolor') { $('menu').hidden = true; return openColor(key); }
     if (a === 'aphoto') { $('menu').hidden = true; return pickPhoto(key); }
+    if (a === 'aemoji') { $('menu').hidden = true; return openEmoji(key); }
     if (a === 'anophoto') { change(() => { adminOf(key).photo = ''; }); return showMenu(key); }
     if (a === 'adel') {
       // 실수 방지: 두 번 눌러야 삭제
@@ -539,6 +566,26 @@ function addAdmin() {
   change(() => { S.admins.push({ id, name: '', color: null, photo: '' }); });
   selected = 'a:' + id; render(); showMenu('a:' + id);
 }
+let emojiKey = null;
+function openEmoji(key) {
+  emojiKey = key;
+  const a = adminOf(key);
+  $('emojiInput').value = a.emoji || ''; $('emojiErr').textContent = '';
+  $('emojiModal').hidden = false;
+  $('emojiInput').focus(); $('emojiInput').select();
+}
+function setEmoji(v) {
+  change(() => { const a = adminOf(emojiKey); if (a) a.emoji = v; });
+  $('emojiModal').hidden = true; hideMenu();
+}
+$('emojiForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = $('emojiInput').value.trim();
+  const n = glyphs(v).length;
+  if (n > 3) { $('emojiErr').textContent = `${n}글자입니다. 3글자 이하로 넣어주세요.`; return; }
+  setEmoji(v);
+});
+$('emojiClear').onclick = () => setEmoji('');
 let coloring = null;
 function openColor(key) {
   coloring = key;
@@ -654,7 +701,7 @@ const FONT_UI = '"Noto Sans KR", "Noto Sans CJK KR", "Apple SD Gothic Neo", "Mal
 async function drawShot() {
   const { W, C, PAD, TOP, NUM, ROW, GAP, SIDE_X, MAIN_R, SGAP } = SHOT;
   const H = shotH();
-  const allText = S.cells.flatMap(c => c.names).join('') + S.admins.map(a => a.name).join('') + '매칭몬도감부방장중복외명0123456789';
+  const allText = S.cells.flatMap(c => c.names).join('') + S.admins.map(a => a.name + a.emoji).join('') + '매칭몬도감부방장중복외명0123456789';
   try {
     await Promise.all([
       document.fonts.load(`900 40px "Noto Sans KR"`, allText),
@@ -699,6 +746,13 @@ async function drawShot() {
     const hex = a.color !== null ? PALETTE[a.color] : null;
     if (a.photo) drawPhoto(aph[j], cx, cy, r);
     else { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = hex || '#2A2A2A'; ctx.fill(); }
+    if (a.emoji) {
+      ctx.save();
+      ctx.font = `900 ${C * markScale(a.emoji)}px ${FONT_UI}, ${EMOJI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,.75)'; ctx.shadowBlur = 4 * k; ctx.shadowOffsetY = 1 * k;
+      ctx.fillStyle = '#FFFFFF'; ctx.fillText(a.emoji, cx, cy + C * .02, C * .9);
+      ctx.restore();
+    }
     if (hex) {
       ctx.strokeStyle = hex; ctx.lineWidth = 3 * k; ctx.beginPath(); ctx.arc(cx, cy, r + 4.5 * k, 0, Math.PI * 2); ctx.stroke();
       // 검은색은 배경에 묻히므로 바깥에 흰 테두리

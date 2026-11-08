@@ -67,11 +67,19 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .side { display: grid; grid-template-columns: repeat(3, var(--cell)); column-gap: calc(var(--gap) + 10px); row-gap: calc(var(--gap) * 0.6 + 14px);
   align-content: start; padding-left: calc(var(--gap) * 1.4); border-left: 1px solid #2E2E2E; align-self: stretch; }
 .side .owner { grid-column: 1 / -1; justify-self: center; }
+.side .sidehead { grid-column: 1 / -1; height: calc(var(--cell) * 1.05); display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-title); font-size: calc(var(--cell) * .34); color: #fff; letter-spacing: .04em; }
+.admin .cell.ring.dark { box-shadow: 0 0 0 3px var(--board), 0 0 0 6px var(--ring), 0 0 0 7.5px #E6E6E6; }
+.admin .cell.dark:not(.ring) { box-shadow: inset 0 0 0 1.5px #E6E6E6; }
 .side .addAdmin { grid-column: 1 / -1; justify-self: stretch; margin-top: 4px; border-style: dashed; color: var(--muted); }
 .admin .cell { background-size: cover; background-position: center; }
 .admin .cell.ring { box-shadow: 0 0 0 3px var(--board), 0 0 0 6px var(--ring); }
 .admin .cell.sel { box-shadow: 0 0 0 3px var(--board), 0 0 0 6px var(--ring, #fff), 0 0 0 9px #fff; }
 .admin .cell.blank { background: transparent; border: 2px dashed #4A4A4A; color: var(--muted); font-size: calc(var(--cell) * .16); font-weight: 700; }
+.admin .acrown { position: absolute; left: 50%; top: calc(var(--cell) * -.2); transform: translateX(-50%); z-index: 3; pointer-events: none;
+  width: calc(var(--cell) * .3); height: calc(var(--cell) * .3); border-radius: 50%; background: #F23CD5;
+  box-shadow: 0 0 0 2px var(--board), 0 1px 3px rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; }
+.admin .acrown svg { width: 64%; height: 64%; display: block; }
 .admin .oname { font-weight: 900; font-size: calc(var(--cell) * .24); line-height: 1; white-space: nowrap; }
 .admin .oname.empty { color: #5C5C5C; font-size: calc(var(--cell) * .17); font-weight: 700; }
 body.capture .addAdmin { display: none; }
@@ -110,10 +118,13 @@ body.capture .addAdmin { display: none; }
 .owner .cell.sel { box-shadow: inset 0 0 0 2px var(--gold), 0 0 0 3px var(--board), 0 0 0 5px #fff; }
 .owner .crown { position: absolute; top: calc(var(--cell) * -.27); font-size: calc(var(--cell) * .3); line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
 .owner .oname { font-weight: 900; font-size: calc(var(--cell) * .24); line-height: 1; white-space: nowrap; }
-.title { grid-column: span 3; display: flex; flex-direction: column; align-items: center; justify-content: center; align-self: start; height: var(--cell); gap: 4px;
+.title { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; align-self: start; height: calc(var(--cell) * 1.05); gap: 4px;
   font-family: var(--font-title); font-size: calc(var(--cell) * .42); color: #fff; white-space: nowrap; letter-spacing: .02em; }
 
 /* 칸 메뉴 */
+.title .heart { display: inline-block; margin-right: .14em; font-family: var(--font-ui); font-size: .92em; transform: translateY(-.04em);
+  background: linear-gradient(180deg, #FFB3CB 0%, #FF5C8F 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 6px rgba(255, 92, 143, .45)); }
 .title .count { font-family: var(--font-ui); font-size: calc(var(--cell) * .2); font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .menu { position: absolute; z-index: 30; width: 210px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px;
   display: grid; grid-template-columns: 1fr 1fr; gap: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.55); }
@@ -328,6 +339,9 @@ function cellButton(key) {
 }
 function render() {
   const g = $('grid'); g.innerHTML = '';
+  const t = document.createElement('div'); t.className = 'title';
+  t.innerHTML = `<span class="ttl"><span class="heart" aria-hidden="true">♥</span>매칭몬 도감</span><span class="count">${countText()}</span>`;
+  g.appendChild(t);
   for (let i = 0; i < N; i++) {
     const c = S.cells[i];
     const slot = document.createElement('div'); slot.className = 'slot';
@@ -352,12 +366,10 @@ function render() {
     slot.appendChild(num);
     g.appendChild(slot);
   }
-  const t = document.createElement('div'); t.className = 'title';
-  t.innerHTML = `<span>매칭몬 도감</span><span class="count">${countText()}</span>`;
-  g.appendChild(t);
 
   // 오른쪽: 방장 + 관리자
   const side = $('side'); side.innerHTML = '';
+  const sh = document.createElement('div'); sh.className = 'sidehead'; sh.textContent = '관리자'; side.appendChild(sh);
   const oc = S.cells[OWNER];
   const os = document.createElement('div'); os.className = 'slot owner';
   const ob = cellButton(OWNER);
@@ -373,10 +385,11 @@ function render() {
     const sl = document.createElement('div'); sl.className = 'slot admin';
     const b = cellButton('a:' + a.id);
     const hex = a.color !== null ? PALETTE[a.color] : null;
-    if (hex) { b.style.setProperty('--ring', hex); b.classList.add('ring'); }
+    if (hex) { b.style.setProperty('--ring', hex); b.classList.add('ring'); if (lum(hex) < .02) b.classList.add('dark'); }
     if (a.photo) b.style.backgroundImage = `url("${a.photo}")`;
     else if (hex) b.style.background = hex;
     else { b.classList.add('blank'); b.textContent = '관리자'; }
+    b.insertAdjacentHTML('beforeend', '<span class="acrown" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 8.2 7.6 11.6 12 5 16.4 11.6 21 8.2 19.2 18H4.8Z" fill="#fff" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></span>');
     b.setAttribute('aria-label', `관리자 ${a.name || '이름 없음'}`);
     sl.appendChild(b);
     const nm = document.createElement('span');
@@ -618,7 +631,7 @@ function endCapture() {}
 
 // ---------- 캡처: 화면 크기와 상관없이 항상 같은 규격의 PNG로 그림 ----------
 // 왼쪽 도감 6칸 + 오른쪽 관리자 3칸. 줄 수는 8줄 (관리자가 많으면 늘어남)
-const SHOT = { C: 132, PAD: 54, TOP: 64, NUM: 56, ROW: 30, BOTTOM: 48, GAP: 36, SGAP: 76 };
+const SHOT = { C: 132, PAD: 54, HEAD: 150, TOP: 64 + 150, NUM: 56, ROW: 30, BOTTOM: 48, GAP: 36, SGAP: 76 };
 SHOT.MAIN_R = SHOT.PAD + 6 * SHOT.C + 5 * SHOT.GAP;
 SHOT.SIDE_X = SHOT.MAIN_R + SHOT.SGAP;
 SHOT.W = SHOT.SIDE_X + 3 * SHOT.C + 2 * SHOT.GAP + SHOT.PAD;
@@ -670,7 +683,7 @@ async function drawShot() {
 
   // 구분선
   ctx.strokeStyle = '#2E2E2E'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(MAIN_R + SGAP / 2, TOP - 20); ctx.lineTo(MAIN_R + SGAP / 2, H - SHOT.BOTTOM); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(MAIN_R + SGAP / 2, 40); ctx.lineTo(MAIN_R + SGAP / 2, H - SHOT.BOTTOM); ctx.stroke();
 
   // 방장 (오른쪽 맨 위 가운데)
   {
@@ -686,7 +699,26 @@ async function drawShot() {
     const hex = a.color !== null ? PALETTE[a.color] : null;
     if (a.photo) drawPhoto(aph[j], cx, cy, r);
     else { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = hex || '#2A2A2A'; ctx.fill(); }
-    if (hex) { ctx.strokeStyle = hex; ctx.lineWidth = 3 * k; ctx.beginPath(); ctx.arc(cx, cy, r + 4.5 * k, 0, Math.PI * 2); ctx.stroke(); }
+    if (hex) {
+      ctx.strokeStyle = hex; ctx.lineWidth = 3 * k; ctx.beginPath(); ctx.arc(cx, cy, r + 4.5 * k, 0, Math.PI * 2); ctx.stroke();
+      // 검은색은 배경에 묻히므로 바깥에 흰 테두리
+      if (lum(hex) < .02) { ctx.strokeStyle = '#E6E6E6'; ctx.lineWidth = 1.5 * k; ctx.beginPath(); ctx.arc(cx, cy, r + 6.75 * k, 0, Math.PI * 2); ctx.stroke(); }
+    } else if (!a.photo) { /* 색 없음 */ }
+    // 분홍 원 + 흰 왕관 배지
+    {
+      const br = C * .15, by = top - C * .05;
+      ctx.save();
+      ctx.fillStyle = '#1E1E1E'; ctx.beginPath(); ctx.arc(cx, by, br + 2 * k, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowColor = 'rgba(0,0,0,.4)'; ctx.shadowBlur = 3 * k; ctx.shadowOffsetY = 1 * k;
+      ctx.fillStyle = '#F23CD5'; ctx.beginPath(); ctx.arc(cx, by, br, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowColor = 'transparent';
+      const sc = (br * 2 * .64) / 24;
+      ctx.translate(cx - 12 * sc, by - 12 * sc); ctx.scale(sc, sc);
+      const crown = new Path2D('M3 8.2 7.6 11.6 12 5 16.4 11.6 21 8.2 19.2 18H4.8Z');
+      ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.6; ctx.lineJoin = 'round';
+      ctx.fill(crown); ctx.stroke(crown);
+      ctx.restore();
+    }
     if (a.name) nameBelow(a.name, cx, top);
   });
 
@@ -737,13 +769,27 @@ async function drawShot() {
     ctx.fillText(String(i + 1), cx, top + C + NUM * .8);
   });
 
-  // 제목 (8번째 줄 4~6번째 자리)
-  const tx = PAD + 3 * (C + GAP) + (C * 3 + GAP * 2) / 2, ty = TOP + 7 * (C + NUM + ROW) + C / 2;
+  // 제목: 도감 위쪽 가운데 / 관리자 제목: 오른쪽 위
+  const tx = (PAD + MAIN_R) / 2, ty = 40 + SHOT.HEAD / 2;
+  ctx.fillStyle = '#FFFFFF'; ctx.font = `${C * .34}px "Jua", ${FONT_UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('관리자', SIDE_X + (3 * C + 2 * GAP) / 2, ty);
   ctx.fillStyle = '#FFFFFF'; ctx.font = `${C * .42}px "Jua", ${FONT_UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('매칭몬 도감', tx, ty - C * .1);
+  {
+    // 하트 + 매칭몬 도감 (하트는 분홍 그라데이션)
+    const ttl = '매칭몬 도감', hy = ty - C * .14;
+    const tw = ctx.measureText(ttl).width;
+    ctx.font = `900 ${C * .38}px ${FONT_UI}`;
+    const hw = ctx.measureText('♥').width, gapH = C * .08, x0 = tx - (hw + gapH + tw) / 2;
+    const hg = ctx.createLinearGradient(0, hy - C * .2, 0, hy + C * .2); hg.addColorStop(0, '#FFB3CB'); hg.addColorStop(1, '#FF5C8F');
+    ctx.save(); ctx.shadowColor = 'rgba(255,92,143,.5)'; ctx.shadowBlur = 10 * k; ctx.fillStyle = hg; ctx.textAlign = 'left';
+    ctx.fillText('♥', x0, hy - C * .01); ctx.restore();
+    ctx.fillStyle = '#FFFFFF'; ctx.font = `${C * .42}px "Jua", ${FONT_UI}`; ctx.textAlign = 'left';
+    ctx.fillText(ttl, x0 + hw + gapH, hy);
+    ctx.textAlign = 'center';
+  }
   ctx.fillStyle = '#8C8C8C'; ctx.font = `700 ${C * .2}px ${FONT_UI}`;
   ctx.font = `700 ${C * .2}px "Noto Sans KR", "Noto Sans CJK KR", "Apple SD Gothic Neo", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-  ctx.fillText(countText(), tx, ty + C * .3);
+  ctx.fillText(countText(), tx, ty + C * .28);
   return cv;
 }
 

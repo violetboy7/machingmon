@@ -76,7 +76,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .admin .cell.ring { box-shadow: 0 0 0 3px var(--board), 0 0 0 6px var(--ring); }
 .admin .cell.sel { box-shadow: 0 0 0 3px var(--board), 0 0 0 6px var(--ring, #fff), 0 0 0 9px #fff; }
 .admin .cell.blank { background: transparent; border: 2px dashed #4A4A4A; color: var(--muted); font-size: calc(var(--cell) * .16); font-weight: 700; }
-.admin .amark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;
+.admin .amark { position: absolute; inset: 0; font-family: var(--flag-font, ) var(--font-ui); display: flex; align-items: center; justify-content: center; pointer-events: none;
   font-weight: 900; line-height: 1; letter-spacing: -.03em; white-space: nowrap; color: #fff;
   text-shadow: 0 0 3px rgba(0,0,0,.75), 0 1px 2px rgba(0,0,0,.6); }
 .admin .acrown { position: absolute; left: 50%; top: calc(var(--cell) * -.2); transform: translateX(-50%); z-index: 3; pointer-events: none;
@@ -707,7 +707,8 @@ async function drawShot() {
       document.fonts.load(`900 40px "Noto Sans KR"`, allText),
       document.fonts.load(`700 40px "Noto Sans KR"`, allText),
       document.fonts.load(`500 40px "Noto Sans KR"`, '0123456789'),
-      document.fonts.load(`40px "Jua"`, '매칭몬 도감')
+      document.fonts.load(`40px "Jua"`, '매칭몬 도감'),
+      FLAG_FONT ? document.fonts.load(`40px "Twemoji Country Flags"`, S.admins.map(a => a.emoji).join('') || '🇰🇷') : null
     ]);
   } catch (_) {}
   const ph = await loadImg(photo);
@@ -748,7 +749,7 @@ async function drawShot() {
     else { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = hex || '#2A2A2A'; ctx.fill(); }
     if (a.emoji) {
       ctx.save();
-      ctx.font = `900 ${C * markScale(a.emoji)}px ${FONT_UI}, ${EMOJI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `900 ${C * markScale(a.emoji)}px ${FLAG_FONT}${FONT_UI}, ${EMOJI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.shadowColor = 'rgba(0,0,0,.75)'; ctx.shadowBlur = 4 * k; ctx.shadowOffsetY = 1 * k;
       ctx.fillStyle = '#FFFFFF'; ctx.fillText(a.emoji, cx, cy + C * .02, C * .9);
       ctx.restore();
@@ -897,6 +898,29 @@ $('clipBtn').onclick = e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { endCapture(); hideMenu(); document.querySelectorAll('.modal').forEach(m => m.hidden = true); } });
 
 // ---------- 시작 ----------
+// ---------- 국기 이모지 (Windows는 국기 이모지가 글자로 나오므로 국기 전용 글꼴을 씀) ----------
+// 방식: country-flag-emoji-polyfill (MIT) 과 같은 판별. 글꼴 파일 flags.woff2 = Twemoji 국기 (CC-BY 4.0)
+let FLAG_FONT = '';
+function emojiColored(t) {
+  try {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.textBaseline = 'top'; ctx.font = `100px ${EMOJI}`; ctx.scale(.01, .01);
+    const px = c => { ctx.clearRect(0, 0, 100, 100); ctx.fillStyle = c; ctx.fillText(t, 0, 0); return ctx.getImageData(0, 0, 1, 1).data.join(','); };
+    const w = px('#fff'), b = px('#000');
+    return w === b && !b.startsWith('0,0,0,');
+  } catch (_) { return true; }
+}
+function enableFlagFont() {
+  const st = document.createElement('style');
+  st.textContent = `@font-face { font-family: "Twemoji Country Flags"; src: url("flags.woff2") format("woff2"); font-display: swap;
+    unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F; }`;
+  document.head.appendChild(st);
+  document.documentElement.style.setProperty('--flag-font', '"Twemoji Country Flags",');
+  FLAG_FONT = '"Twemoji Country Flags", ';
+}
+if (/[?&]flags=1/.test(location.search) || (emojiColored('\u{1F60A}') && !emojiColored('\u{1F1ED}\u{1F1F0}'))) enableFlagFont();
+
 (function boot() {
   const cached = lsGet();
   if (cached) { S = normalize(cached.board); if (typeof cached.photo === 'string') photo = cached.photo; }

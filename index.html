@@ -139,6 +139,8 @@ body.capture .addAdmin { display: none; }
 .menu .adjrow .btn { font-size: 20px; font-weight: 800; padding: 6px; }
 .menu .sexinfo { grid-column: span 2; font-size: 15px; font-weight: 700; padding: 6px 4px 8px; border-bottom: 1px solid var(--line); margin-bottom: 2px; font-variant-numeric: tabular-nums; }
 .menu .sexinfo b { color: var(--accent); }
+.menu .sexinfo .certsex { display: inline-block; margin-top: 4px; font-size: 14px; color: #A5D8FF; }
+.menu .sexinfo .certsex b { color: #A5D8FF; }
 .title .sexcount { font-family: var(--font-ui); font-size: calc(var(--cell) * .16); font-weight: 700; color: #6E8BA8; font-variant-numeric: tabular-nums; }
 body.capture .sexcount { display: none; }
 .menu .sexrow { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -375,6 +377,8 @@ const adjCount = () => (S.cells[OWNER] && S.cells[OWNER].adj) || 0;
 const adjText = () => { const v = adjCount(); return v > 0 ? `+${v}명` : v < 0 ? `−${-v}명` : ''; };
 // 성별 (숫자 확인용, 도감에는 표시하지 않음): 닉네임이 있는 칸만 셈
 const sexCount = x => S.cells.slice(0, N).filter(c => c.names.length && c.sex === x).length;
+// 인증(❄️)한 사람 중 남/여
+const certSexCount = x => S.cells.slice(0, N).filter(c => c.names.length && c.hl && c.sex === x).length;
 const countText = () => `(❄️${certCount()}) ${filledCount() + adjCount()} / ${N}`;
 
 // ---------- 그리기 ----------
@@ -534,7 +538,7 @@ function showMenu(key) {
   if (key === 'adj') {
     const v = adjCount();
     const un = filledCount() - sexCount('m') - sexCount('f');
-    m.innerHTML = `<div class="sexinfo">남 <b>${sexCount('m')}</b> · 여 <b>${sexCount('f')}</b>${un > 0 ? ` · 미체크 ${un}` : ''}</div>
+    m.innerHTML = `<div class="sexinfo">남 <b>${sexCount('m')}</b> · 여 <b>${sexCount('f')}</b>${un > 0 ? ` · 미체크 ${un}` : ''}<br><span class="certsex">❄️남 <b>${certSexCount('m')}</b> · ❄️여 <b>${certSexCount('f')}</b></span></div>
       <div class="head">인원 수 직접 조정 · 도감 ${filledCount()}명</div>
       <div class="adjrow"><button type="button" class="btn" data-a="adjdown" aria-label="한 명 빼기">−</button>
       <span class="adjval">${v > 0 ? '+' + v : v < 0 ? '−' + (-v) : '0'}</span>

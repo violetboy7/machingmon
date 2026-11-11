@@ -137,6 +137,13 @@ body.capture .addAdmin { display: none; }
 .menu .adjrow { grid-column: span 2; display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; align-items: center; }
 .menu .adjval { min-width: 64px; text-align: center; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .menu .adjrow .btn { font-size: 20px; font-weight: 800; padding: 6px; }
+.menu .sexinfo { grid-column: span 2; font-size: 15px; font-weight: 700; padding: 6px 4px 8px; border-bottom: 1px solid var(--line); margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+.menu .sexinfo b { color: var(--accent); }
+.title .sexcount { font-family: var(--font-ui); font-size: calc(var(--cell) * .16); font-weight: 700; color: #6E8BA8; font-variant-numeric: tabular-nums; }
+body.capture .sexcount { display: none; }
+.menu .sexrow { grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.menu .on.male { border-color: #74C0FC; color: #74C0FC; }
+.menu .on.female { border-color: #F783AC; color: #F783AC; }
 .title .count { font-family: var(--font-ui); font-size: calc(var(--cell) * .2); font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .menu { position: absolute; z-index: 30; width: 210px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px;
   display: grid; grid-template-columns: 1fr 1fr; gap: 6px; box-shadow: 0 12px 30px rgba(0,0,0,.55); }
@@ -243,7 +250,7 @@ body.capture .board { margin-top: 12px; }
 <div class="modal" id="resetModal" hidden>
   <div class="dialog">
     <h2>도감 초기화</h2>
-    <p>모든 닉네임, 인증, 부방장 표시와 인원 조정을 지웁니다. 방장 칸과 관리자 칸, 색은 그대로입니다. 직후에는 [되돌리기]로 되돌릴 수 있습니다.</p>
+    <p>모든 닉네임, 인증, 부방장 표시, 성별 체크와 인원 조정을 지웁니다. 방장 칸과 관리자 칸, 색은 그대로입니다. 직후에는 [되돌리기]로 되돌릴 수 있습니다.</p>
     <div class="actions">
       <button type="button" class="btn" data-close>취소</button>
       <button type="button" class="btn danger" id="resetOk">초기화</button>
@@ -324,6 +331,7 @@ function normalize(b) {
   if (Array.isArray(b.cells)) base.cells = base.cells.map((d, i) => {
     const c = b.cells[i] || {};
     const o = { names: Array.isArray(c.names) ? c.names.map(String).filter(Boolean) : d.names, hl: !!c.hl, mgr: !!c.mgr };
+    if (c.sex === 'm' || c.sex === 'f') o.sex = c.sex;
     if (i === OWNER && Number.isInteger(c.adj) && c.adj) o.adj = Math.max(-99, Math.min(99, c.adj));
     return o;
   });
@@ -365,6 +373,8 @@ const certCount = () => S.cells.slice(0, N).filter(c => c.names.length && c.hl).
 // 인원 조정: 도감에 없는 인원을 직접 더하거나 뺌 (방장 칸 데이터에 저장)
 const adjCount = () => (S.cells[OWNER] && S.cells[OWNER].adj) || 0;
 const adjText = () => { const v = adjCount(); return v > 0 ? `+${v}명` : v < 0 ? `−${-v}명` : ''; };
+// 성별 (숫자 확인용, 도감에는 표시하지 않음): 닉네임이 있는 칸만 셈
+const sexCount = x => S.cells.slice(0, N).filter(c => c.names.length && c.sex === x).length;
 const countText = () => `(❄️${certCount()}) ${filledCount() + adjCount()} / ${N}`;
 
 // ---------- 그리기 ----------
@@ -523,7 +533,9 @@ function showMenu(key) {
   const m = $('menu');
   if (key === 'adj') {
     const v = adjCount();
-    m.innerHTML = `<div class="head">인원 수 직접 조정 · 도감 ${filledCount()}명</div>
+    const un = filledCount() - sexCount('m') - sexCount('f');
+    m.innerHTML = `<div class="sexinfo">남 <b>${sexCount('m')}</b> · 여 <b>${sexCount('f')}</b>${un > 0 ? ` · 미체크 ${un}` : ''}</div>
+      <div class="head">인원 수 직접 조정 · 도감 ${filledCount()}명</div>
       <div class="adjrow"><button type="button" class="btn" data-a="adjdown" aria-label="한 명 빼기">−</button>
       <span class="adjval">${v > 0 ? '+' + v : v < 0 ? '−' + (-v) : '0'}</span>
       <button type="button" class="btn" data-a="adjup" aria-label="한 명 더하기">+</button></div>
@@ -551,7 +563,9 @@ function showMenu(key) {
     <button type="button" class="btn wide ${c.hl ? 'on' : ''}" data-a="hl">${c.hl ? '❄️ 인증 해제' : '❄️ 인증 표시'}</button>` +
     (i === OWNER
       ? `<button type="button" class="btn" data-a="photo">사진 변경</button><button type="button" class="btn danger" data-a="nophoto" ${photo ? '' : 'disabled'}>사진 삭제</button>`
-      : `<button type="button" class="btn wide ${c.mgr ? 'on' : ''}" data-a="mgr">${c.mgr ? '★ 부방장 해제' : '★ 부방장 표시'}</button>`);
+      : `<button type="button" class="btn wide ${c.mgr ? 'on' : ''}" data-a="mgr">${c.mgr ? '★ 부방장 해제' : '★ 부방장 표시'}</button>
+         <div class="sexrow"><button type="button" class="btn ${c.sex === 'm' ? 'on male' : ''}" data-a="sexm" ${c.names.length ? '' : 'disabled'}>남자</button>
+         <button type="button" class="btn ${c.sex === 'f' ? 'on female' : ''}" data-a="sexf" ${c.names.length ? '' : 'disabled'}>여자</button></div>`);
   m.hidden = false; placeMenu(key);
 }
 function hideMenu() { $('menu').hidden = true; if (selected !== null) { selected = null; render(); } }
@@ -587,9 +601,10 @@ function act(a, key, btn) {
   if (a === 'photo') { $('menu').hidden = true; return pickPhoto(OWNER); }
   if (a === 'nophoto') { photo = ''; savePhoto(); return showMenu(i); }
   change(() => {
-    if (a === 'del') { c.names = []; toast(`${label(i)} 닉네임을 지웠습니다`); }
+    if (a === 'del') { c.names = []; delete c.sex; toast(`${label(i)} 닉네임을 지웠습니다`); }
     if (a === 'hl') c.hl = !c.hl;
     if (a === 'mgr') c.mgr = !c.mgr;
+    if (a === 'sexm' || a === 'sexf') { const v = a === 'sexm' ? 'm' : 'f'; if (c.sex === v) delete c.sex; else c.sex = v; setTimeout(() => toast(`남 ${sexCount('m')} · 여 ${sexCount('f')}`, 1500), 0); }
   });
   if (a === 'del') hideMenu(); else showMenu(i);
 }
@@ -670,7 +685,7 @@ $('editForm').addEventListener('submit', e => {
   }
   const i = editing;
   if (isAdminKey(i)) change(() => { const a = adminOf(i); if (a) a.name = out[0] || ''; });
-  else change(() => { S.cells[i].names = out; });
+  else change(() => { S.cells[i].names = out; if (!out.length) delete S.cells[i].sex; });
   $('editModal').hidden = true; hideMenu();
 });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('.modal').hidden = true));
@@ -705,7 +720,7 @@ $('undoBtn').onclick = () => { if (!prev) return; S = prev; prev = null; afterCh
 $('clearHlBtn').onclick = () => { if (S.cells.some(c => c.hl)) change(() => S.cells.forEach(c => c.hl = false)); };
 $('resetBtn').onclick = () => { $('resetModal').hidden = false; };
 $('resetOk').onclick = () => {
-  change(() => S.cells.forEach((c, i) => { if (i !== OWNER) c.names = []; else delete c.adj; c.hl = false; c.mgr = false; }));
+  change(() => S.cells.forEach((c, i) => { if (i !== OWNER) c.names = []; else delete c.adj; delete c.sex; c.hl = false; c.mgr = false; }));
   $('resetModal').hidden = true; toast('초기화했습니다. [되돌리기]로 되돌릴 수 있습니다', 3000);
 };
 $('captureBtn').onclick = e => { e.stopPropagation(); hideMenu(); capture(); };

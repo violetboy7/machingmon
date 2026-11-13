@@ -67,6 +67,26 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #1E1E1E; font-weight: 700; }
 .btn.danger { color: var(--danger); }
 .btn:disabled { opacity: .4; cursor: default; }
+.filters { max-width: var(--wrap); margin: 0 auto 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.filters .flabel { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.chip { border: 1px solid var(--line); background: transparent; color: var(--text); padding: 6px 11px; border-radius: 999px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #1E1E1E; font-weight: 700; }
+.chip.reset { color: var(--muted); }
+.chip.unchk { border-style: dashed; }
+.chip.unchk b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.filters .fres { font-size: 12px; color: var(--muted); }
+.filters .fres b { color: var(--accent); }
+body.capture .filters { display: none; }
+.slot.dim { opacity: .13; transition: opacity .15s; }
+.dialog .muted { color: var(--muted); font-size: 14px; font-weight: 500; }
+.sexlist { display: flex; flex-direction: column; gap: 6px; max-height: 55vh; overflow: auto; }
+.sexlist .srow { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 9px; background: #1C1C1C; }
+.sexlist .sw { width: 22px; height: 22px; border-radius: 50%; flex: none; }
+.sexlist .no { font-size: 12px; color: var(--muted); width: 32px; font-variant-numeric: tabular-nums; }
+.sexlist .nm { flex: 1; min-width: 0; font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sexlist .btn { padding: 6px 12px; }
+.sexlist .btn.on.male { border-color: #74C0FC; color: #74C0FC; }
+.sexlist .btn.on.female { border-color: #F783AC; color: #F783AC; }
 .dupline { max-width: var(--wrap); margin: 0 auto 8px; font-size: 12px; color: #FFC9C9; background: #3A1D20; border: 1px solid #5C2A2E; border-radius: 9px; padding: 7px 10px; }
 
 /* 도감 */
@@ -212,6 +232,17 @@ body.capture .board { margin-top: 12px; }
   <button class="btn" id="histBtn" hidden>복원</button>
   <div class="search"><input id="searchInput" type="search" placeholder="닉네임 검색" enterkeyhint="search" autocomplete="off" aria-label="닉네임 검색"><span class="sres" id="searchRes" aria-live="polite"></span></div>
 </div>
+<div class="filters" id="filters">
+  <span class="flabel">보기</span>
+  <button type="button" class="chip" data-f="m">남자</button>
+  <button type="button" class="chip" data-f="f">여자</button>
+  <button type="button" class="chip" data-f="cy">❄️ 인증자</button>
+  <button type="button" class="chip" data-f="cn">일반 멤버</button>
+  <button type="button" class="chip" data-f="filled">사람 있는 칸</button>
+  <button type="button" class="chip reset" data-f="all">전체 보기</button>
+  <button type="button" class="chip unchk" id="unchkBtn">성별 미체크 <b id="unchkN">0</b></button>
+  <span class="fres" id="fres"></span>
+</div>
 <div class="dupline" id="dupline" hidden></div>
 
 <div class="board" id="board">
@@ -248,6 +279,15 @@ body.capture .board { margin-top: 12px; }
       <button type="submit" class="btn primary">확인</button>
     </div>
   </form>
+</div>
+
+<div class="modal" id="sexModal" hidden>
+  <div class="dialog">
+    <h2>성별 미체크 인원 <span id="sexModalN" class="muted"></span></h2>
+    <p>남자 / 여자를 누르면 바로 적용됩니다. 잘못 눌렀으면 다시 누르면 풀립니다.</p>
+    <div class="sexlist" id="sexList"></div>
+    <div class="actions"><button type="button" class="btn" data-close>닫기</button></div>
+  </div>
 </div>
 
 <div class="modal" id="colorModal" hidden>
@@ -392,6 +432,66 @@ const certSexCount = x => S.cells.slice(0, N).filter(c => c.names.length && c.hl
 const countText = () => `(❄️${certCount()}) ${filledCount() + adjCount()} / ${N}`;
 
 // ---------- 그리기 ----------
+// ---------- 보기 필터 (화면 전용, 저장 이미지에는 영향 없음) ----------
+// 남/여, 인증/일반은 같이 고르면 항상 0명이므로 서로 바꿔 끼우고, 나머지는 AND 조건
+const filt = { sex: null, cert: null, filled: false };
+const filterOn = () => !!(filt.sex || filt.cert || filt.filled);
+function matchCell(c) {
+  if (!filterOn()) return true;
+  if (!c.names.length) return false;
+  if (filt.sex && c.sex !== filt.sex) return false;
+  if (filt.cert === 'y' && !c.hl) return false;
+  if (filt.cert === 'n' && c.hl) return false;
+  return true;
+}
+function drawFilters() {
+  document.querySelectorAll('#filters [data-f]').forEach(b => {
+    const f = b.dataset.f;
+    b.classList.toggle('on', (f === 'm' && filt.sex === 'm') || (f === 'f' && filt.sex === 'f') || (f === 'cy' && filt.cert === 'y') || (f === 'cn' && filt.cert === 'n') || (f === 'filled' && filt.filled));
+  });
+  const un = S.cells.slice(0, N).filter(c => c.names.length && !c.sex).length;
+  $('unchkN').textContent = un;
+  const n = S.cells.slice(0, N).filter(c => filterOn() && matchCell(c)).length;
+  $('fres').innerHTML = filterOn() ? `<b>${n}</b>칸 표시 중` : '';
+}
+document.querySelectorAll('#filters [data-f]').forEach(b => b.addEventListener('click', e => {
+  e.stopPropagation();
+  const f = b.dataset.f;
+  if (f === 'all') { filt.sex = null; filt.cert = null; filt.filled = false; }
+  else if (f === 'm' || f === 'f') filt.sex = filt.sex === f ? null : f;
+  else if (f === 'cy' || f === 'cn') { const v = f === 'cy' ? 'y' : 'n'; filt.cert = filt.cert === v ? null : v; }
+  else if (f === 'filled') filt.filled = !filt.filled;
+  hideMenu(); render();
+}));
+
+// ---------- 성별 미체크 팝업 ----------
+let sexListKeys = [];
+function openSexList() {
+  hideMenu();
+  // 열 때의 미체크 인원 목록을 고정해 두고, 체크해도 목록에서 바로 사라지지 않게 함 (다시 눌러 바꿀 수 있도록)
+  sexListKeys = S.cells.slice(0, N).map((c, i) => i).filter(i => S.cells[i].names.length && !S.cells[i].sex);
+  drawSexList();
+  $('sexModal').hidden = false;
+}
+function drawSexList() {
+  const left = sexListKeys.filter(i => !S.cells[i].sex && S.cells[i].names.length).length;
+  $('sexModalN').textContent = sexListKeys.length ? `· 남은 ${left}명` : '';
+  $('sexList').innerHTML = sexListKeys.length ? sexListKeys.map(i => {
+    const c = S.cells[i];
+    return `<div class="srow"><span class="sw" style="background:${PALETTE[i]};${lum(PALETTE[i]) < .02 ? 'box-shadow:inset 0 0 0 1px #666' : ''}"></span><span class="no">${i + 1}번</span>
+      <span class="nm">${esc(c.names.join(', ') || '(비어 있음)')}</span>
+      <button type="button" class="btn ${c.sex === 'm' ? 'on male' : ''}" data-i="${i}" data-s="m">남자</button>
+      <button type="button" class="btn ${c.sex === 'f' ? 'on female' : ''}" data-i="${i}" data-s="f">여자</button></div>`;
+  }).join('') : '<p>성별을 체크하지 않은 사람이 없습니다.</p>';
+  $('sexList').querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.i, v = b.dataset.s;
+    if (readOnly) return;
+    change(() => { const c = S.cells[i]; if (c.sex === v) delete c.sex; else c.sex = v; });
+    drawSexList();
+  });
+}
+$('unchkBtn').addEventListener('click', e => { e.stopPropagation(); openSexList(); });
+
 // ---------- 닉네임 검색 ----------
 const found = { keys: new Set(), timer: null };
 // 모든 닉네임 목록: { key, label, name }
@@ -438,7 +538,7 @@ function render() {
   g.appendChild(t);
   for (let i = 0; i < N; i++) {
     const c = S.cells[i];
-    const slot = document.createElement('div'); slot.className = 'slot';
+    const slot = document.createElement('div'); slot.className = 'slot' + (matchCell(c) ? '' : ' dim');
     const b = cellButton(i);
     const hex = PALETTE[i];
     let html = '';
@@ -501,6 +601,8 @@ function render() {
   const dups = S.cells.slice(0, N).map((c, i) => ({ c, i })).filter(x => x.c.names.length > 1);
   $('dupline').hidden = !dups.length;
   $('dupline').textContent = '중복 ' + dups.length + '칸: ' + dups.map(x => `${x.i + 1}번 (${x.c.names.join(', ')})`).join(' · ');
+  drawFilters();
+  if (!$('sexModal').hidden) drawSexList();
   $('undoBtn').disabled = !prev || readOnly;
   for (const id of ['clearHlBtn', 'resetBtn']) $(id).disabled = readOnly;
 }
@@ -647,7 +749,7 @@ function act(a, key, btn) {
   if (a === 'photo') { $('menu').hidden = true; return pickPhoto(OWNER); }
   if (a === 'nophoto') { photo = ''; savePhoto(); return showMenu(i); }
   change(() => {
-    if (a === 'del') { c.names = []; delete c.sex; toast(`${label(i)} 닉네임을 지웠습니다`); }
+    if (a === 'del') { c.names = []; delete c.sex; c.hl = false; c.mgr = false; toast(`${label(i)} 칸을 비웠습니다 (인증·부방장·성별 포함)`); }
     if (a === 'hl') c.hl = !c.hl;
     if (a === 'mgr') c.mgr = !c.mgr;
     if (a === 'sexm' || a === 'sexf') { const v = a === 'sexm' ? 'm' : 'f'; if (c.sex === v) delete c.sex; else c.sex = v; setTimeout(() => toast(`남 ${sexCount('m')} · 여 ${sexCount('f')}`, 1500), 0); }

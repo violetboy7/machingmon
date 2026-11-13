@@ -54,6 +54,14 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .bar .status { margin-right: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; min-width: 0; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
 .dot.ok { background: #51CF66; } .dot.warn { background: var(--accent); }
+.search { flex: 1 1 100%; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.search input { flex: 0 1 220px; min-width: 0; padding: 7px 11px; border-radius: 9px; border: 1px solid var(--line); background: #1A1A1A; color: var(--text); font: 500 14px var(--font-ui); }
+.search .sres { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search .sres b { color: var(--accent); }
+.cell.found { z-index: 4; animation: found .7s ease-in-out 5; }
+@keyframes found { 0%, 100% { box-shadow: 0 0 0 3px var(--board), 0 0 0 6px var(--accent); } 50% { box-shadow: 0 0 0 3px var(--board), 0 0 0 12px rgba(255, 212, 59, .25); } }
+@media (prefers-reduced-motion: reduce) { .cell.found { animation: none; box-shadow: 0 0 0 3px var(--board), 0 0 0 6px var(--accent); } }
+.err.warn { color: var(--accent); }
 .btn { border: 1px solid var(--line); background: var(--panel); padding: 7px 11px; border-radius: 9px; font-size: 13px; font-weight: 500; white-space: nowrap; }
 .btn:active { background: var(--panel-2); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #1E1E1E; font-weight: 700; }
@@ -153,6 +161,7 @@ body.capture .sexcount { display: none; }
 .menu .sw { width: 14px; height: 14px; border-radius: 50%; flex: none; background-size: cover; }
 .menu .btn { padding: 10px 6px; font-size: 14px; }
 .menu .wide { grid-column: span 2; }
+.menu .menuclose { margin-top: 2px; background: transparent; color: var(--muted); border-color: var(--line); }
 .menu .on { border-color: var(--accent); color: var(--accent); }
 .menu .armed { background: var(--danger); border-color: var(--danger); color: #fff; }
 
@@ -201,6 +210,7 @@ body.capture .board { margin-top: 12px; }
   <button class="btn primary" id="clipBtn">클립보드 복사</button>
   <button class="btn danger" id="resetBtn">초기화</button>
   <button class="btn" id="histBtn" hidden>복원</button>
+  <div class="search"><input id="searchInput" type="search" placeholder="닉네임 검색" enterkeyhint="search" autocomplete="off" aria-label="닉네임 검색"><span class="sres" id="searchRes" aria-live="polite"></span></div>
 </div>
 <div class="dupline" id="dupline" hidden></div>
 
@@ -382,10 +392,38 @@ const certSexCount = x => S.cells.slice(0, N).filter(c => c.names.length && c.hl
 const countText = () => `(❄️${certCount()}) ${filledCount() + adjCount()} / ${N}`;
 
 // ---------- 그리기 ----------
+// ---------- 닉네임 검색 ----------
+const found = { keys: new Set(), timer: null };
+// 모든 닉네임 목록: { key, label, name }
+function allNames() {
+  const out = [];
+  S.cells.forEach((c, i) => c.names.forEach(n => out.push({ key: String(i), label: i === OWNER ? '방장' : `${i + 1}번`, name: n })));
+  S.admins.forEach(a => { if (a.name) out.push({ key: 'a:' + a.id, label: '관리자', name: a.name }); });
+  return out;
+}
+function runSearch() {
+  const q = $('searchInput').value.trim();
+  clearTimeout(found.timer); found.keys.clear();
+  if (!q) { $('searchRes').textContent = ''; render(); return; }
+  const hits = allNames().filter(x => x.name.includes(q));
+  hits.forEach(h => found.keys.add(h.key));
+  $('searchRes').innerHTML = hits.length ? hits.map(h => `<b>${esc(h.label)}</b> ${esc(h.name)}`).join(' · ') : '찾는 닉네임이 없습니다';
+  render();
+  if (hits.length) {
+    const el = $('board').querySelector(`[data-key="${CSS.escape(hits[0].key)}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    found.timer = setTimeout(() => { found.keys.clear(); render(); }, 4000);
+  }
+}
+let searchT = null;
+$('searchInput').addEventListener('input', () => { clearTimeout(searchT); searchT = setTimeout(runSearch, 250); });
+$('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(searchT); runSearch(); e.target.blur(); } });
+
 function cellButton(key) {
   const b = document.createElement('button');
   b.className = 'cell'; b.type = 'button'; b.dataset.key = key;
   if (selected === key) b.classList.add('sel');
+  if (found.keys.has(String(key))) b.classList.add('found');
   b.addEventListener('click', e => { e.stopPropagation(); onCell(key); });
   return b;
 }
@@ -519,12 +557,15 @@ const isAdminKey = k => typeof k === 'string' && k.startsWith('a:');
 const adminOf = k => S.admins.find(a => 'a:' + a.id === k);
 function onCell(key) {
   if (readOnly) return;
+  // 열려 있는 칸(제목)을 다시 누르면 닫기
+  if (selected === key && !$('menu').hidden) return hideMenu();
   selected = key; render(); showMenu(key);
 }
 function placeMenu(key) {
   const m = $('menu');
   const cellEl = $('board').querySelector(`[data-key="${key}"]`);
   if (!cellEl) { m.hidden = true; return; }
+  m.insertAdjacentHTML('beforeend', '<button type="button" class="btn wide menuclose" data-a="close">닫기</button>');
   const bx = $('board').getBoundingClientRect(), cx = cellEl.getBoundingClientRect();
   let left = cx.left - bx.left + cx.width / 2 - 105;
   left = Math.max(6, Math.min(left, bx.width - 216));
@@ -576,6 +617,7 @@ function hideMenu() { $('menu').hidden = true; if (selected !== null) { selected
 document.addEventListener('click', e => { if (!e.target.closest('.menu') && !e.target.closest('.modal')) hideMenu(); });
 
 function act(a, key, btn) {
+  if (a === 'close') return hideMenu();
   if (key === 'adj') {
     change(() => {
       const o = S.cells[OWNER];
@@ -671,7 +713,7 @@ function openEdit(i) {
   $('editTitle').textContent = adm ? '관리자 닉네임' : `${label(i)} 닉네임`;
   $('editHint').textContent = adm ? '두 글자로 입력하세요. 비워두고 확인하면 이름이 지워집니다.' : '두 글자로 입력하세요. 같은 색을 쓰는 사람이 여럿이면 이름을 추가하세요.';
   $('addRow').hidden = !!adm;
-  $('rows').innerHTML = ''; $('editErr').textContent = '';
+  $('rows').innerHTML = ''; $('editErr').textContent = ''; $('editErr').dataset.sig = ''; $('editErr').classList.remove('warn');
   const names = adm ? [adm.name || ''] : (S.cells[i].names.length ? S.cells[i].names : ['']);
   const inputs = names.map(n => addRow(n));
   $('editModal').hidden = false;
@@ -684,10 +726,24 @@ $('editForm').addEventListener('submit', e => {
   for (const inp of $('rows').querySelectorAll('input')) {
     const v = inp.value.trim();
     if (!v) continue;
-    if (Array.from(v).length !== 2) { $('editErr').textContent = `"${v}" — 두 글자로 입력하세요.`; inp.focus(); return; }
+    if (Array.from(v).length !== 2) { $('editErr').classList.remove('warn'); $('editErr').dataset.sig = ''; $('editErr').textContent = `"${v}" — 두 글자로 입력하세요.`; inp.focus(); return; }
     out.push(v);
   }
   const i = editing;
+  // 같은 닉네임 경고: 다른 칸에 같은 이름이 있으면 한 번 알려주고, 확인을 다시 누르면 저장
+  const selfKey = String(i);
+  const dupMsgs = [];
+  for (const n of out) {
+    const others = allNames().filter(x => x.name === n && x.key !== selfKey);
+    if (others.length) dupMsgs.push(`"${n}"은(는) ${others.map(o => o.label).join(', ')}에 이미 있습니다`);
+  }
+  if (out.length !== new Set(out).size) dupMsgs.push('같은 칸에 같은 이름이 두 번 들어가 있습니다');
+  const sig = dupMsgs.join('|');
+  if (dupMsgs.length && $('editErr').dataset.sig !== sig) {
+    $('editErr').dataset.sig = sig; $('editErr').classList.add('warn');
+    $('editErr').textContent = dupMsgs.join(' · ') + '. 그래도 저장하려면 [확인]을 한 번 더 누르세요.';
+    return;
+  }
   if (isAdminKey(i)) change(() => { const a = adminOf(i); if (a) a.name = out[0] || ''; });
   else change(() => { S.cells[i].names = out; if (!out.length) delete S.cells[i].sex; });
   $('editModal').hidden = true; hideMenu();

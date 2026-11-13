@@ -230,10 +230,10 @@ body.capture .board { margin-top: 12px; }
   <button class="btn primary" id="clipBtn">클립보드 복사</button>
   <button class="btn danger" id="resetBtn">초기화</button>
   <button class="btn" id="histBtn" hidden>복원</button>
-  <div class="search"><input id="searchInput" type="search" placeholder="닉네임 검색" enterkeyhint="search" autocomplete="off" aria-label="닉네임 검색"><span class="sres" id="searchRes" aria-live="polite"></span></div>
+  <div class="search"><input id="searchInput" type="search" placeholder="닉네임 검색 (초성 ㅎㅂ 가능)" enterkeyhint="search" autocomplete="off" aria-label="닉네임 검색"><span class="sres" id="searchRes" aria-live="polite"></span></div>
 </div>
 <div class="filters" id="filters">
-  <span class="flabel">보기</span>
+  <span class="flabel">필터</span>
   <button type="button" class="chip" data-f="m">남자</button>
   <button type="button" class="chip" data-f="f">여자</button>
   <button type="button" class="chip" data-f="cy">❄️ 인증자</button>
@@ -432,7 +432,7 @@ const certSexCount = x => S.cells.slice(0, N).filter(c => c.names.length && c.hl
 const countText = () => `(❄️${certCount()}) ${filledCount() + adjCount()} / ${N}`;
 
 // ---------- 그리기 ----------
-// ---------- 보기 필터 (화면 전용, 저장 이미지에는 영향 없음) ----------
+// ---------- 필터 (화면과 저장 이미지에 같이 적용, 다른 기기에는 영향 없음) ----------
 // 남/여, 인증/일반은 같이 고르면 항상 0명이므로 서로 바꿔 끼우고, 나머지는 AND 조건
 const filt = { sex: null, cert: null, filled: false };
 const filterOn = () => !!(filt.sex || filt.cert || filt.filled);
@@ -443,6 +443,10 @@ function matchCell(c) {
   if (filt.cert === 'y' && !c.hl) return false;
   if (filt.cert === 'n' && c.hl) return false;
   return true;
+}
+function filterLabel() {
+  return [filt.sex === 'm' ? '남자' : filt.sex === 'f' ? '여자' : '', filt.cert === 'y' ? '❄️ 인증자' : filt.cert === 'n' ? '일반 멤버' : '', filt.filled && !filt.sex && !filt.cert ? '사람 있는 칸' : '']
+    .filter(Boolean).join(' · ');
 }
 function drawFilters() {
   document.querySelectorAll('#filters [data-f]').forEach(b => {
@@ -501,11 +505,32 @@ function allNames() {
   S.admins.forEach(a => { if (a.name) out.push({ key: 'a:' + a.id, label: '관리자', name: a.name }); });
   return out;
 }
+// 한글 자모 분해: '행복' → 'ㅎㅐㅇㅂㅗㄱ', 초성: 'ㅎㅂ'
+const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const JUNG = 'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ';
+const JONG = ['', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+function jamo(str, choOnly) {
+  let out = '';
+  for (const ch of str) {
+    const code = ch.charCodeAt(0) - 0xAC00;
+    if (code >= 0 && code < 11172) {
+      out += CHO[Math.floor(code / 588)];
+      if (!choOnly) out += JUNG[Math.floor((code % 588) / 28)] + JONG[code % 28];
+    } else out += ch;
+  }
+  return out;
+}
+// 완성된 글자, 초성만(ㅎㅂ), 모음·자음 섞인 입력(ㅐ, 해ㅇ) 모두 찾기
+function nameMatch(name, q) {
+  if (name.includes(q)) return true;
+  if (/^[ㄱ-ㅎ]+$/.test(q) && jamo(name, true).includes(q)) return true;
+  return jamo(name).includes(jamo(q));
+}
 function runSearch() {
   const q = $('searchInput').value.trim();
   clearTimeout(found.timer); found.keys.clear();
   if (!q) { $('searchRes').textContent = ''; render(); return; }
-  const hits = allNames().filter(x => x.name.includes(q));
+  const hits = allNames().filter(x => nameMatch(x.name, q));
   hits.forEach(h => found.keys.add(h.key));
   $('searchRes').innerHTML = hits.length ? hits.map(h => `<b>${esc(h.label)}</b> ${esc(h.name)}`).join(' · ') : '찾는 닉네임이 없습니다';
   render();
@@ -989,8 +1014,10 @@ async function drawShot() {
     if (a.name) nameBelow(a.name, cx, top);
   });
 
+  // 필터가 켜져 있으면 조건에 안 맞는 칸은 흐리게 (화면과 동일)
   S.cells.forEach((c, i) => {
     if (i === OWNER) return;
+    ctx.save(); ctx.globalAlpha = matchCell(c) ? 1 : .13;
     const col = i % 6, row = Math.floor(i / 6);
     const cx = PAD + col * (C + GAP) + C / 2;
     const top = TOP + row * (C + NUM + ROW);
@@ -1034,6 +1061,7 @@ async function drawShot() {
     }
     ctx.fillStyle = '#8C8C8C'; ctx.font = `500 ${12 * k}px ${FONT_UI}`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillText(String(i + 1), cx, top + C + NUM * .8);
+    ctx.restore();
   });
 
   // 제목: 도감 위쪽 가운데 / 관리자 제목: 오른쪽 위
@@ -1057,6 +1085,11 @@ async function drawShot() {
   ctx.fillStyle = '#8C8C8C'; ctx.font = `700 ${C * .2}px ${FONT_UI}`;
   ctx.font = `700 ${C * .2}px "Noto Sans KR", "Noto Sans CJK KR", "Apple SD Gothic Neo", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
   ctx.fillText(countText(), tx, ty + C * .28);
+  if (filterOn()) {
+    // 어떤 필터로 저장했는지 표시
+    ctx.fillStyle = '#FFD43B'; ctx.font = `700 ${C * .17}px ${FONT_UI}, ${EMOJI}`;
+    ctx.fillText(`필터: ${filterLabel()} · ${S.cells.slice(0, N).filter(matchCell).length}명`, tx, ty + C * .52);
+  }
   if (adjCount()) {
     // 조정 인원: 도감 오른쪽 끝(관리자 왼쪽)에 표시
     const plus = adjCount() > 0, txt = adjText(), fs = C * .2;

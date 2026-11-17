@@ -135,6 +135,9 @@ body.capture .addAdmin { display: none; }
 .cell .s2 { font-size: calc(var(--cell) * .22); }
 .cell .more { font-size: calc(var(--cell) * .15); font-weight: 700; opacity: .85; }
 .cell.sel { box-shadow: 0 0 0 3px var(--board), 0 0 0 5px #fff; }
+/* 하이라이트: 원에 바로 붙은 흰 테두리가 바깥으로 갈수록 흐려짐 */
+.cell.glow { --glow: 0 0 0 1.5px rgba(255,255,255,.95), 0 0 3px 2px rgba(255,255,255,.7), 0 0 7px 4px rgba(255,255,255,.35), 0 0 12px 6px rgba(255,255,255,.12); box-shadow: var(--glow); z-index: 1; }
+.cell.glow.sel { box-shadow: var(--glow), 0 0 0 9px var(--board), 0 0 0 11px #fff; }
 .cell.two .cert { top: calc(var(--cell) * .02); }
 .cell .cert { position: absolute; left: 50%; top: calc(var(--cell) * .07); transform: translateX(-50%); font-size: calc(var(--cell) * .19); line-height: 1; pointer-events: none; filter: drop-shadow(0 0 1px rgba(0,0,0,.55)) drop-shadow(0 0 2px rgba(0,0,0,.25)); }
 .owner .ocert { font-size: .85em; margin-right: 1px; }
@@ -226,6 +229,7 @@ body.capture .board { margin-top: 12px; }
   <div class="status"><span class="dot" id="dot"></span><span id="statusText">불러오는 중…</span></div>
   <button class="btn" id="undoBtn" disabled>되돌리기</button>
   <button class="btn" id="clearHlBtn">인증 전체 해제</button>
+  <button class="btn" id="clearGlowBtn">하이라이트 전체 해제</button>
   <button class="btn primary" id="captureBtn">이미지 저장</button>
   <button class="btn primary" id="clipBtn">클립보드 복사</button>
   <button class="btn danger" id="resetBtn">초기화</button>
@@ -302,7 +306,7 @@ body.capture .board { margin-top: 12px; }
 <div class="modal" id="resetModal" hidden>
   <div class="dialog">
     <h2>도감 초기화</h2>
-    <p>모든 닉네임, 인증, 부방장 표시, 성별 체크와 인원 조정을 지웁니다. 방장 칸과 관리자 칸, 색은 그대로입니다. 직후에는 [되돌리기]로 되돌릴 수 있습니다.</p>
+    <p>모든 닉네임, 인증, 하이라이트, 부방장 표시, 성별 체크와 인원 조정을 지웁니다. 방장 칸과 관리자 칸, 색은 그대로입니다. 직후에는 [되돌리기]로 되돌릴 수 있습니다.</p>
     <div class="actions">
       <button type="button" class="btn" data-close>취소</button>
       <button type="button" class="btn danger" id="resetOk">초기화</button>
@@ -384,6 +388,7 @@ function normalize(b) {
     const c = b.cells[i] || {};
     const o = { names: Array.isArray(c.names) ? c.names.map(String).filter(Boolean) : d.names, hl: !!c.hl, mgr: !!c.mgr };
     if (c.sex === 'm' || c.sex === 'f') o.sex = c.sex;
+    if (c.glow) o.glow = true;
     if (i === OWNER && Number.isInteger(c.adj) && c.adj) o.adj = Math.max(-99, Math.min(99, c.adj));
     return o;
   });
@@ -572,6 +577,7 @@ function render() {
     if (lum(hex) < .02) b.classList.add('edge');
     const n = c.names;
     if (n.length > 1) b.classList.add('dup', 'two');
+    if (c.glow) b.classList.add('glow');
     if (c.hl) html += '<span class="cert" aria-label="인증">❄️</span>';
     if (n.length === 1) html += `<span class="nm s1">${esc(n[0])}</span>`;
     else if (n.length === 2) html += `<span class="nm s2">${esc(n[0])}</span><span class="nm s2">${esc(n[1])}</span>`;
@@ -629,7 +635,7 @@ function render() {
   drawFilters();
   if (!$('sexModal').hidden) drawSexList();
   $('undoBtn').disabled = !prev || readOnly;
-  for (const id of ['clearHlBtn', 'resetBtn']) $(id).disabled = readOnly;
+  for (const id of ['clearHlBtn', 'clearGlowBtn', 'resetBtn']) $(id).disabled = readOnly;
 }
 
 // ---------- 저장 ----------
@@ -733,6 +739,7 @@ function showMenu(key) {
     <button type="button" class="btn" data-a="edit">수정</button>
     <button type="button" class="btn danger" data-a="del" ${c.names.length ? '' : 'disabled'}>삭제</button>
     <button type="button" class="btn wide ${c.hl ? 'on' : ''}" data-a="hl">${c.hl ? '❄️ 인증 해제' : '❄️ 인증 표시'}</button>` +
+    (i === OWNER ? '' : `<button type="button" class="btn wide ${c.glow ? 'on' : ''}" data-a="glow">${c.glow ? '하이라이트 끄기' : '하이라이트'}</button>`) +
     (i === OWNER
       ? `<button type="button" class="btn" data-a="photo">사진 변경</button><button type="button" class="btn danger" data-a="nophoto" ${photo ? '' : 'disabled'}>사진 삭제</button>`
       : `<button type="button" class="btn wide ${c.mgr ? 'on' : ''}" data-a="mgr">${c.mgr ? '★ 부방장 해제' : '★ 부방장 표시'}</button>
@@ -774,8 +781,9 @@ function act(a, key, btn) {
   if (a === 'photo') { $('menu').hidden = true; return pickPhoto(OWNER); }
   if (a === 'nophoto') { photo = ''; savePhoto(); return showMenu(i); }
   change(() => {
-    if (a === 'del') { c.names = []; delete c.sex; c.hl = false; c.mgr = false; toast(`${label(i)} 칸을 비웠습니다 (인증·부방장·성별 포함)`); }
+    if (a === 'del') { c.names = []; delete c.sex; delete c.glow; c.hl = false; c.mgr = false; toast(`${label(i)} 칸을 비웠습니다 (인증·부방장·성별·하이라이트 포함)`); }
     if (a === 'hl') c.hl = !c.hl;
+    if (a === 'glow') { if (c.glow) delete c.glow; else c.glow = true; }
     if (a === 'mgr') c.mgr = !c.mgr;
     if (a === 'sexm' || a === 'sexf') { const v = a === 'sexm' ? 'm' : 'f'; if (c.sex === v) delete c.sex; else c.sex = v; setTimeout(() => toast(`남 ${sexCount('m')} · 여 ${sexCount('f')}`, 1500), 0); }
   });
@@ -904,10 +912,11 @@ function pickPhoto(target) {
 
 // ---------- 도구 막대 ----------
 $('undoBtn').onclick = () => { if (!prev) return; S = prev; prev = null; afterChange(); toast('직전 상태로 되돌렸습니다'); };
+$('clearGlowBtn').onclick = () => { if (S.cells.some(c => c.glow)) change(() => S.cells.forEach(c => { delete c.glow; })); };
 $('clearHlBtn').onclick = () => { if (S.cells.some(c => c.hl)) change(() => S.cells.forEach(c => c.hl = false)); };
 $('resetBtn').onclick = () => { $('resetModal').hidden = false; };
 $('resetOk').onclick = () => {
-  change(() => S.cells.forEach((c, i) => { if (i !== OWNER) c.names = []; else delete c.adj; delete c.sex; c.hl = false; c.mgr = false; }));
+  change(() => S.cells.forEach((c, i) => { if (i !== OWNER) c.names = []; else delete c.adj; delete c.sex; delete c.glow; c.hl = false; c.mgr = false; }));
   $('resetModal').hidden = true; toast('초기화했습니다. [되돌리기]로 되돌릴 수 있습니다', 3000);
 };
 $('captureBtn').onclick = e => { e.stopPropagation(); hideMenu(); capture(); };
@@ -1023,6 +1032,14 @@ async function drawShot() {
     const top = TOP + row * (C + NUM + ROW);
     const cy = top + C / 2, r = C / 2;
 
+    if (c.glow) {
+      // 하이라이트: 원에 붙은 흰 띠가 바깥으로 흐려짐
+      const W = 11 * k;
+      const g = ctx.createRadialGradient(cx, cy, r, cx, cy, r + W);
+      g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.14, 'rgba(255,255,255,.75)');
+      g.addColorStop(.4, 'rgba(255,255,255,.32)'); g.addColorStop(.7, 'rgba(255,255,255,.1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r + W, 0, Math.PI * 2); ctx.arc(cx, cy, r, 0, Math.PI * 2, true); ctx.fill();
+    }
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
     const hex = PALETTE[i];
     ctx.fillStyle = hex; ctx.fill();
